@@ -1,20 +1,187 @@
 <!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#2fa84f" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Calorie Log" />
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="./icon-192.png" />
-  <link rel="stylesheet" href="./styles.css" />
-  <meta name="description" content="食事・カロリー・PFC・体重を記録するiPhone向けテストWebアプリ" />
-  <title>Calorie Log</title>
-</head>
-<body>
-  <div id="app"></div>
-  <script src="./app.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#14532d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Calorie Log" />
+    <title>Calorie Log</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="public/icon-192.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Calorie Log</p>
+          <h1>今日あと <span id="remainingKcal">--</span> kcal</h1>
+        </div>
+        <button class="icon-button" id="installHelp" aria-label="ホーム画面追加">＋</button>
+      </header>
+
+      <main>
+        <section class="hero-panel" aria-label="今日の概要">
+          <div class="date-row">
+            <button class="ghost-button" id="prevDate" aria-label="前の日">‹</button>
+            <input type="date" id="datePicker" />
+            <button class="ghost-button" id="nextDate" aria-label="次の日">›</button>
+          </div>
+          <div class="calorie-meter">
+            <div class="meter-ring"><span id="todayKcal">0</span><small>/ <b id="goalKcal">2000</b></small></div>
+            <div class="meter-copy">
+              <strong id="dayMessage">良いペースです</strong>
+              <span id="offlineStatus">端末内に保存中</span>
+            </div>
+          </div>
+          <div class="macro-grid" id="macroGrid"></div>
+        </section>
+
+        <nav class="tabs" aria-label="表示切替">
+          <button data-tab="log" class="active">記録</button>
+          <button data-tab="food">食品</button>
+          <button data-tab="photo">写真</button>
+          <button data-tab="analysis">分析</button>
+          <button data-tab="settings">設定</button>
+        </nav>
+
+        <section class="tab-panel active" id="tab-log">
+          <div class="quick-add">
+            <input id="foodSearch" type="search" placeholder="食品検索" autocomplete="off" />
+            <select id="mealSelect"></select>
+          </div>
+          <div class="food-results" id="foodResults"></div>
+          <div class="quick-rails">
+            <div>
+              <h2>お気に入り</h2>
+              <div class="chip-row" id="favoriteChips"></div>
+            </div>
+            <div>
+              <h2>最近使った食品</h2>
+              <div class="chip-row" id="recentChips"></div>
+            </div>
+            <div>
+              <h2>食事テンプレート</h2>
+              <div class="chip-row" id="templateChips"></div>
+              <div class="template-save-row">
+                <input id="templateName" placeholder="テンプレート名" />
+                <button id="saveTemplateButton" class="secondary-button" type="button">保存</button>
+              </div>
+            </div>
+          </div>
+          <div id="mealSections"></div>
+        </section>
+
+        <section class="tab-panel" id="tab-food">
+          <form id="customFoodForm" class="form-grid">
+            <h2>自分専用食品</h2>
+            <input name="name" placeholder="食品名" required />
+            <input name="serving" placeholder="基準量 例: 1個 / 100g" />
+            <div class="number-row">
+              <input name="kcal" type="number" min="0" step="1" placeholder="kcal" required />
+              <input name="protein" type="number" min="0" step="0.1" placeholder="P g" />
+              <input name="fat" type="number" min="0" step="0.1" placeholder="F g" />
+              <input name="carbs" type="number" min="0" step="0.1" placeholder="C g" />
+            </div>
+            <button type="submit" class="primary-button">登録</button>
+          </form>
+          <div class="food-library" id="customFoodList"></div>
+        </section>
+
+        <section class="tab-panel" id="tab-photo">
+          <div class="photo-box">
+            <input id="photoInput" type="file" accept="image/*" capture="environment" />
+            <img id="photoPreview" alt="" hidden />
+            <textarea id="photoNote" rows="2" placeholder="写真メモ 例: 外食ランチ、量は少なめ"></textarea>
+            <button id="savePhotoNoteButton" class="secondary-button" type="button">メモ保存</button>
+            <p>写真を見ながら、候補から選んで量を調整できます。</p>
+          </div>
+          <div class="photo-history" id="photoHistory"></div>
+          <div id="photoCandidates"></div>
+        </section>
+
+        <section class="tab-panel" id="tab-analysis">
+          <div class="analysis-grid">
+            <article>
+              <h2>7日分析</h2>
+              <div id="analysis7"></div>
+            </article>
+            <article>
+              <h2>30日分析</h2>
+              <div id="analysis30"></div>
+            </article>
+          </div>
+          <div class="chart" id="calorieChart" aria-label="30日カロリー推移"></div>
+          <form id="weightForm" class="form-grid">
+            <h2>体重記録</h2>
+            <input name="weight" type="number" min="0" step="0.1" placeholder="kg" required />
+            <button type="submit" class="primary-button">保存</button>
+          </form>
+        </section>
+
+        <section class="tab-panel" id="tab-settings">
+          <form id="goalForm" class="form-grid">
+            <h2>目標設定</h2>
+            <input name="calorieGoal" type="number" min="0" step="10" placeholder="目標kcal" />
+            <div class="number-row">
+              <input name="protein" type="number" min="0" step="1" placeholder="P g" />
+              <input name="fat" type="number" min="0" step="1" placeholder="F g" />
+              <input name="carbs" type="number" min="0" step="1" placeholder="C g" />
+            </div>
+            <button type="submit" class="primary-button">保存</button>
+          </form>
+          <form id="profileForm" class="form-grid">
+            <h2>プロフィールから目安計算</h2>
+            <div class="number-row">
+              <select name="sex"><option value="female">女性</option><option value="male">男性</option></select>
+              <input name="age" type="number" min="10" step="1" placeholder="年齢" />
+              <input name="heightCm" type="number" min="100" step="1" placeholder="身長cm" />
+              <input name="weightKg" type="number" min="20" step="0.1" placeholder="体重kg" />
+            </div>
+            <div class="number-row">
+              <select name="activity">
+                <option value="1.2">低い</option>
+                <option value="1.375">普通</option>
+                <option value="1.55">高い</option>
+              </select>
+              <select name="goal">
+                <option value="lose">減量</option>
+                <option value="maintain">維持</option>
+                <option value="gain">増量</option>
+              </select>
+            </div>
+            <button type="submit" class="secondary-button">目標に反映</button>
+          </form>
+          <div class="backup-row">
+            <button id="backupButton" class="secondary-button">バックアップ</button>
+            <label class="secondary-button restore-label">復元<input id="restoreInput" type="file" accept="application/json" hidden /></label>
+          </div>
+          <div class="suggestions">
+            <h2>残りに合う候補</h2>
+            <div id="suggestions"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="entryDialog">
+      <form method="dialog" id="entryForm">
+        <h2 id="entryTitle">食品を追加</h2>
+        <p id="entryMeta"></p>
+        <select name="meal"></select>
+        <input name="quantity" type="number" min="0.1" step="0.1" value="1" />
+        <menu>
+          <button value="cancel" class="secondary-button">閉じる</button>
+          <button value="add" class="primary-button">追加</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script src="app-core.js"></script>
+    <script src="photo-recognition.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>

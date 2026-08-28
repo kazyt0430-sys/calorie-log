@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#14532d"/>
+  <circle cx="96" cy="92" r="52" fill="#dff4e8"/>
+  <path d="M58 104c17 25 59 27 78 0" fill="none" stroke="#1f7a45" stroke-width="12" stroke-linecap="round"/>
+  <path d="M74 67h44c11 0 20 9 20 20v5H54v-5c0-11 9-20 20-20z" fill="#ffffff"/>
+  <text x="96" y="151" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="800" fill="#ffffff">CL</text>
+</svg>

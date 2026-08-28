@@ -1,42 +1,492 @@
-const $ = (s)=>document.querySelector(s);
-const store = {
-  get(k,d){ try{return JSON.parse(localStorage.getItem(k)) ?? d}catch{return d}},
-  set(k,v){localStorage.setItem(k,JSON.stringify(v))}
+const Core = window.CalorieCore;
+
+let state = loadState();
+let selectedDate = Core.todayKey();
+let selectedFood = null;
+let currentPhotoId = null;
+
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+
+const els = {
+  remainingKcal: $("#remainingKcal"),
+  todayKcal: $("#todayKcal"),
+  goalKcal: $("#goalKcal"),
+  dayMessage: $("#dayMessage"),
+  offlineStatus: $("#offlineStatus"),
+  datePicker: $("#datePicker"),
+  macroGrid: $("#macroGrid"),
+  mealSelect: $("#mealSelect"),
+  foodSearch: $("#foodSearch"),
+  foodResults: $("#foodResults"),
+  favoriteChips: $("#favoriteChips"),
+  recentChips: $("#recentChips"),
+  templateChips: $("#templateChips"),
+  templateName: $("#templateName"),
+  saveTemplateButton: $("#saveTemplateButton"),
+  mealSections: $("#mealSections"),
+  customFoodForm: $("#customFoodForm"),
+  customFoodList: $("#customFoodList"),
+  photoInput: $("#photoInput"),
+  photoPreview: $("#photoPreview"),
+  photoNote: $("#photoNote"),
+  savePhotoNoteButton: $("#savePhotoNoteButton"),
+  photoHistory: $("#photoHistory"),
+  photoCandidates: $("#photoCandidates"),
+  analysis7: $("#analysis7"),
+  analysis30: $("#analysis30"),
+  calorieChart: $("#calorieChart"),
+  weightForm: $("#weightForm"),
+  goalForm: $("#goalForm"),
+  profileForm: $("#profileForm"),
+  backupButton: $("#backupButton"),
+  restoreInput: $("#restoreInput"),
+  suggestions: $("#suggestions"),
+  entryDialog: $("#entryDialog"),
+  entryForm: $("#entryForm"),
+  entryTitle: $("#entryTitle"),
+  entryMeta: $("#entryMeta"),
+  toast: $("#toast"),
 };
-const todayKey=()=>new Date().toISOString().slice(0,10);
-const fmtDate=(d=new Date())=>`${d.getMonth()+1}月${d.getDate()}日`;
-const defaults={kcal:2000,p:120,f:60,c:250};
-let state={tab:'today',date:todayKey(),target:store.get('target',defaults),meals:store.get('meals',{}),weights:store.get('weights',[]),camera:null};
-const foodDB=[
-{name:'白ご飯 150g',kcal:234,p:3.8,f:.5,c:55.7},{name:'白ご飯 180g',kcal:281,p:4.5,f:.6,c:66.8},{name:'納豆 1パック',kcal:90,p:7.4,f:4.5,c:5.4},{name:'卵 1個',kcal:76,p:6.2,f:5.2,c:.2},{name:'味噌汁 1杯',kcal:45,p:2.5,f:1.5,c:5},{name:'サラダチキン 1個',kcal:115,p:23,f:1.5,c:1.5},{name:'鮭おにぎり 1個',kcal:190,p:4.5,f:2,c:38},{name:'唐揚げ 1個',kcal:82,p:5.1,f:5.2,c:3.4},{name:'プロテイン 1杯',kcal:120,p:24,f:2,c:4},{name:'バナナ 1本',kcal:93,p:1.1,f:.2,c:22.5}];
-function dayMeals(){return state.meals[state.date]||[]}
-function totals(){return dayMeals().reduce((a,x)=>({kcal:a.kcal+x.kcal,p:a.p+x.p,f:a.f+x.f,c:a.c+x.c}),{kcal:0,p:0,f:0,c:0})}
-function pct(v,t){return Math.min(100,Math.round(v/t*100))}
-function saveMeals(){store.set('meals',state.meals)}
-function nav(){return `<nav class="bottom">${[['today','🏠','今日'],['analysis','📊','分析'],['weight','⚖️','体重'],['ai','🤖','AI相談'],['settings','⚙️','設定']].map(x=>`<button class="nav ${state.tab===x[0]?'active':''}" data-tab="${x[0]}"><span class="ico">${x[1]}</span>${x[2]}</button>`).join('')}</nav>`}
-function header(title,back=false){return `<header class="top">${back?'<button class="topbtn" id="back">‹</button>':'<span></span>'}<div style="text-align:center"><div class="title">${title}</div>${title==='今日'?`<div class="date">${fmtDate(new Date(state.date+'T12:00:00'))}</div>`:''}</div><span></span></header>`}
-function today(){const t=totals(),r=Math.max(0,state.target.kcal-t.kcal);const groups=['朝食','昼食','夕食','間食'];return `${header('今日')}<section class="card hero"><div class="remaining">あと <b>${Math.round(r)}</b> kcal</div><div class="sub">${Math.round(t.kcal).toLocaleString()} / ${state.target.kcal.toLocaleString()} kcal</div><div class="bar"><span style="width:${pct(t.kcal,state.target.kcal)}%"></span></div><div class="macros">${macro('たんぱく質',t.p,state.target.p,'var(--green)')}${macro('脂質',t.f,state.target.f,'var(--orange)')}${macro('炭水化物',t.c,state.target.c,'var(--yellow)')}</div></section><section class="card" style="padding:0">${groups.map(g=>mealGroup(g)).join('')}</section><div style="padding:0 16px"><button class="primary" id="addMeal">＋ 食事を記録</button></div><div class="notice"><b>🤖 AIアドバイス</b><br>${advice(t)}</div>${nav()}`}
-function macro(n,v,t,color){return `<div class="macro"><small>${n}</small><strong>${Math.round(v)} / ${t}g</strong><div class="mini"><span style="width:${pct(v,t)}%;background:${color}"></span></div></div>`}
-function mealGroup(g){const xs=dayMeals().filter(x=>x.type===g);const k=xs.reduce((a,x)=>a+x.kcal,0);return `<div class="meal"><div><h3>${g}</h3><p>${xs.length?xs.map(x=>x.name).join('・'):'未登録'}</p></div><div class="kcal">${xs.length?Math.round(k)+' kcal':'＋'}</div></div>`}
-function advice(t){const p=Math.max(0,Math.round(state.target.p-t.p)),f=Math.max(0,Math.round(state.target.f-t.f));return p>0?`たんぱく質があと${p}g不足しています。${f<15?'脂質は残り少なめなので、鶏むね肉・魚・豆腐などがおすすめです。':'夕食で主菜をしっかり取ると目標に近づきます。'}`:'たんぱく質は目標圏内です。残りカロリーを見ながら調整しましょう。'}
-function addMeal(){return `${header('食事を記録',true)}<div class="section-title">記録方法を選んでください</div><section class="card grid"><button class="method camera" id="camera"><b>📷 写真からAI解析</b><span>iPhoneカメラで撮影できます（解析接続は次版）</span></button><button class="method search" id="searchFood"><b>🔎 食品・料理を検索</b><span>登録済み食品から追加</span></button><button class="method manual" id="manual"><b>✏️ 手入力</b><span>食品名・量・栄養を直接入力</span></button></section>`}
-function searchFood(){return `${header('食品・料理を検索',true)}<section class="card"><div class="field"><label>検索</label><input id="q" placeholder="例：ご飯、卵、プロテイン"></div><div class="field"><label>食事区分</label><select id="mealType"><option>朝食</option><option>昼食</option><option>夕食</option><option>間食</option></select></div><div id="foods" class="food-list">${foodsHtml(foodDB)}</div></section>`}
-function foodsHtml(xs){return xs.map((f,i)=>`<div class="food"><div><b>${f.name}</b><br><small>${f.kcal} kcal / P${f.p} F${f.f} C${f.c}</small></div><button class="chip addFood" data-name="${encodeURIComponent(f.name)}">追加</button></div>`).join('')}
-function manual(){return `${header('手入力',true)}<section class="card"><div class="field"><label>食品名</label><input id="name" placeholder="例：焼き魚"></div><div class="field"><label>食事区分</label><select id="type"><option>朝食</option><option>昼食</option><option>夕食</option><option>間食</option></select></div><div class="field"><label>カロリー</label><input id="kcal" type="number" inputmode="decimal" value="0"></div><div class="row"><div class="field"><label>P (g)</label><input id="p" type="number" inputmode="decimal" value="0"></div><div class="field"><label>F (g)</label><input id="f" type="number" inputmode="decimal" value="0"></div></div><div class="field"><label>C (g)</label><input id="c" type="number" inputmode="decimal" value="0"></div><button class="primary" id="saveManual">登録する</button></section>`}
-function camera(){return `${header('写真から記録',true)}<section class="card"><span class="badge">iPhoneカメラ対応</span><p class="muted">料理写真を撮影または選択してください。今回のテスト版では写真取得とプレビューまで確認できます。</p><input id="photo" type="file" accept="image/*" capture="environment" style="width:100%;margin:12px 0"> <div id="previewArea"></div><div class="notice" style="margin:12px 0 0">AIによる料理名・量・カロリー推定はVersion 0.2で接続します。</div></section>`}
-function analysis(){const days=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));const k=d.toISOString().slice(0,10);const xs=state.meals[k]||[];return {k,v:xs.reduce((a,x)=>a+x.kcal,0)}});const max=Math.max(state.target.kcal,...days.map(x=>x.v));return `${header('分析')}<section class="card"><b>直近7日間の摂取カロリー</b><div class="chart">${days.map(x=>`<div class="barcol"><i style="height:${Math.max(4,130*x.v/max)}px"></i>${x.k.slice(5)}</div>`).join('')}</div></section><section class="card"><div class="stat"><span>7日平均</span><b>${Math.round(days.reduce((a,x)=>a+x.v,0)/7)} kcal</b></div><div class="stat"><span>目標</span><b>${state.target.kcal} kcal</b></div></section>${nav()}`}
-function weight(){const last=state.weights.at(-1);return `${header('体重')}<section class="card"><div class="field"><label>今日の体重 (kg)</label><input id="weightInput" type="number" inputmode="decimal" step="0.1" value="${last?.value||''}" placeholder="例：71.8"></div><button class="primary" id="saveWeight">保存する</button></section><section class="card"><b>最近の記録</b>${state.weights.length?state.weights.slice(-7).reverse().map(x=>`<div class="stat"><span>${x.date}</span><b>${x.value} kg</b></div>`).join(''):'<div class="empty">まだ記録がありません</div>'}</section>${nav()}`}
-function ai(){const t=totals();return `${header('AI相談')}<section class="card"><div class="notice" style="margin:0"><b>現在の状態</b><br>残り ${Math.max(0,Math.round(state.target.kcal-t.kcal))} kcal / たんぱく質あと ${Math.max(0,Math.round(state.target.p-t.p))}g</div><p class="muted">Version 0.2では「コンビニで何を買えばいい？」「ラーメン食べてもいい？」のような相談を、当日の残り栄養量を使って回答できるようにします。</p><button class="secondary" disabled>AI相談（次版で有効化）</button></section>${nav()}`}
-function settings(){const x=state.target;return `${header('設定')}<section class="card"><div class="field"><label>目標カロリー</label><input id="tk" type="number" value="${x.kcal}"></div><div class="row"><div class="field"><label>P (g)</label><input id="tp" type="number" value="${x.p}"></div><div class="field"><label>F (g)</label><input id="tf" type="number" value="${x.f}"></div></div><div class="field"><label>C (g)</label><input id="tc" type="number" value="${x.c}"></div><button class="primary" id="saveSettings">保存する</button></section><section class="card"><button class="secondary danger" id="reset">テストデータを初期化</button></section>${nav()}`}
-function render(view=state.tab){const app=$('#app'); if(view==='add')app.innerHTML=`<div class="app">${addMeal()}</div>`; else if(view==='search')app.innerHTML=`<div class="app">${searchFood()}</div>`; else if(view==='manual')app.innerHTML=`<div class="app">${manual()}</div>`; else if(view==='camera')app.innerHTML=`<div class="app">${camera()}</div>`; else {state.tab=view; const f={today,analysis,weight,ai,settings}[view]||today;app.innerHTML=`<div class="app">${f()}</div>`} bind(view)}
-function bind(view){document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>render(b.dataset.tab)); const back=$('#back'); if(back)back.onclick=()=>render(view==='search'||view==='manual'||view==='camera'?'add':'today'); if($('#addMeal'))$('#addMeal').onclick=()=>render('add'); if($('#searchFood'))$('#searchFood').onclick=()=>render('search'); if($('#manual'))$('#manual').onclick=()=>render('manual'); if($('#camera'))$('#camera').onclick=()=>render('camera');
- if(view==='search'){const q=$('#q'),foods=$('#foods');q.oninput=()=>{const s=q.value.trim();foods.innerHTML=foodsHtml(foodDB.filter(f=>f.name.includes(s)))};document.addEventListener('click',addFoodOnce,{once:true,capture:true});}
- if(view==='manual')$('#saveManual').onclick=()=>{const item={name:$('#name').value.trim()||'手入力',type:$('#type').value,kcal:+$('#kcal').value||0,p:+$('#p').value||0,f:+$('#f').value||0,c:+$('#c').value||0};addItem(item)};
- if(view==='camera')$('#photo').onchange=(e)=>{const f=e.target.files?.[0];if(!f)return;const url=URL.createObjectURL(f);$('#previewArea').innerHTML=`<img class="preview" src="${url}"><button class="secondary" id="demoAdd">写真確認OK（デモ食事を登録）</button>`;$('#demoAdd').onclick=()=>addItem({name:'写真からのデモ登録',type:'昼食',kcal:500,p:25,f:18,c:58})};
- if(view==='weight')$('#saveWeight').onclick=()=>{const v=+$('#weightInput').value;if(!v)return alert('体重を入力してください');state.weights.push({date:todayKey(),value:v});state.weights=state.weights.slice(-90);store.set('weights',state.weights);render('weight')};
- if(view==='settings'){ $('#saveSettings').onclick=()=>{state.target={kcal:+$('#tk').value||2000,p:+$('#tp').value||120,f:+$('#tf').value||60,c:+$('#tc').value||250};store.set('target',state.target);alert('保存しました');render('settings')}; $('#reset').onclick=()=>{if(confirm('端末内のテストデータを削除しますか？')){localStorage.clear();location.reload()}}}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(Core.STORAGE_KEY);
+    return Core.migrate(raw ? JSON.parse(raw) : null);
+  } catch (error) {
+    console.warn(error);
+    return Core.emptyState();
+  }
 }
-function addFoodOnce(e){const b=e.target.closest('.addFood');if(!b)return;const f=foodDB.find(x=>x.name===decodeURIComponent(b.dataset.name));if(!f)return;addItem({...f,type:$('#mealType').value})}
-function addItem(item){state.meals[state.date]=[...(state.meals[state.date]||[]),item];saveMeals();render('today')}
-render('today');
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+
+function saveState() {
+  localStorage.setItem(Core.STORAGE_KEY, JSON.stringify(state));
+}
+
+function money(n) {
+  return Math.round(n).toLocaleString("ja-JP");
+}
+
+function macro(n) {
+  return Core.roundMacro(n).toLocaleString("ja-JP", { maximumFractionDigits: 1 });
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;",
+  })[char]);
+}
+
+function init() {
+  selectedDate = Core.todayKey();
+  els.datePicker.value = selectedDate;
+  fillMealSelects();
+  bindEvents();
+  render();
+  registerServiceWorker();
+}
+
+function fillMealSelects() {
+  const options = Core.mealTypes.map((meal) => `<option value="${meal.id}">${meal.label}</option>`).join("");
+  els.mealSelect.innerHTML = options;
+  els.entryForm.meal.innerHTML = options;
+}
+
+function bindEvents() {
+  $("#prevDate").addEventListener("click", () => shiftDate(-1));
+  $("#nextDate").addEventListener("click", () => shiftDate(1));
+  els.datePicker.addEventListener("change", () => {
+    selectedDate = els.datePicker.value || Core.todayKey();
+    render();
+  });
+  els.foodSearch.addEventListener("input", renderFoodResults);
+  $$(".tabs button").forEach((button) => {
+    button.addEventListener("click", () => setTab(button.dataset.tab));
+  });
+  els.customFoodForm.addEventListener("submit", handleCustomFood);
+  els.weightForm.addEventListener("submit", handleWeight);
+  els.goalForm.addEventListener("submit", handleGoals);
+  els.profileForm.addEventListener("submit", handleProfile);
+  els.backupButton.addEventListener("click", downloadBackup);
+  els.restoreInput.addEventListener("change", restoreBackup);
+  els.photoInput.addEventListener("change", handlePhoto);
+  els.savePhotoNoteButton.addEventListener("click", handleSavePhotoNote);
+  els.entryForm.addEventListener("submit", handleEntrySubmit);
+  els.saveTemplateButton.addEventListener("click", handleSaveTemplate);
+  $("#installHelp").addEventListener("click", () => toast("Safariの共有からホーム画面に追加できます"));
+}
+
+function shiftDate(delta) {
+  const date = new Date(`${selectedDate}T00:00:00`);
+  date.setDate(date.getDate() + delta);
+  selectedDate = Core.todayKey(date);
+  els.datePicker.value = selectedDate;
+  render();
+}
+
+function setTab(tab) {
+  $$(".tabs button").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
+  $$(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === `tab-${tab}`));
+  render();
+}
+
+function render() {
+  saveState();
+  renderSummary();
+  renderFoodResults();
+  renderQuickRails();
+  renderTemplates();
+  renderMeals();
+  renderCustomFoods();
+  renderAnalysis();
+  renderForms();
+  renderPhotoHistory();
+  renderSuggestions();
+}
+
+function renderTemplates() {
+  els.templateChips.innerHTML = state.mealTemplates.map((template) => {
+    const nutrition = Core.templateNutrition(state, template);
+    return `<button data-template-id="${template.id}">${escapeHtml(template.name)} ${money(nutrition.kcal)}kcal</button>`;
+  }).join("") || `<span class="empty">まだありません</span>`;
+  els.templateChips.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const entries = Core.applyMealTemplate(state, selectedDate, button.dataset.templateId);
+      toast(entries.length ? "テンプレートを追加しました" : "追加できる食品がありません");
+      render();
+    });
+  });
+}
+
+function handleSaveTemplate() {
+  try {
+    const meal = els.mealSelect.value;
+    const mealLabel = Core.mealTypes.find((item) => item.id === meal)?.label || "食事";
+    const name = els.templateName.value || `${mealLabel}テンプレート`;
+    Core.createMealTemplateFromEntries(state, selectedDate, meal, name);
+    els.templateName.value = "";
+    toast("テンプレートを保存しました");
+    render();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function renderSummary() {
+  const totals = Core.calculateDay(state, selectedDate);
+  const left = Core.remaining(state, selectedDate);
+  const goal = state.settings.calorieGoal;
+  const progress = Math.min(100, Math.max(0, (totals.kcal / Math.max(goal, 1)) * 100));
+  $(".meter-ring").style.setProperty("--progress", `${progress}%`);
+  els.remainingKcal.textContent = money(left.kcal);
+  els.todayKcal.textContent = money(totals.kcal);
+  els.goalKcal.textContent = money(goal);
+  els.dayMessage.textContent = left.kcal >= 350 ? "まだ余裕があります" : left.kcal >= 0 ? "仕上げは軽めが良さそう" : "今日は目標を超えています";
+  els.offlineStatus.textContent = navigator.onLine ? "端末内に保存中" : "オフラインで利用中";
+  const macros = [
+    ["P", "protein", "たんぱく質"],
+    ["F", "fat", "脂質"],
+    ["C", "carbs", "炭水化物"],
+  ];
+  els.macroGrid.innerHTML = macros.map(([short, key, label]) => {
+    const remain = state.settings.macroGoals[key] - totals[key];
+    return `<div class="macro-card"><span>${label}</span><b>${macro(remain)}g</b><small>${short} ${macro(totals[key])}/${macro(state.settings.macroGoals[key])}g</small></div>`;
+  }).join("");
+}
+
+function renderFoodResults() {
+  const foods = Core.searchFoods(state, els.foodSearch.value);
+  els.foodResults.innerHTML = foods.map(foodCard).join("") || `<p class="empty">食品が見つかりません</p>`;
+  bindFoodCards(els.foodResults);
+}
+
+function foodCard(food) {
+  const fav = state.favorites.includes(food.id) ? "★" : "☆";
+  return `
+    <article class="food-card" data-food-id="${food.id}">
+      <div><strong>${escapeHtml(food.name)}</strong><span>${escapeHtml(food.serving)} · ${money(food.kcal)}kcal · P${macro(food.protein)} F${macro(food.fat)} C${macro(food.carbs)}</span></div>
+      <div class="card-actions">
+        <button class="tiny-button" data-action="favorite" aria-label="お気に入り">${fav}</button>
+        <button class="tiny-button" data-action="add" aria-label="追加">＋</button>
+      </div>
+    </article>`;
+}
+
+function bindFoodCards(root) {
+  root.querySelectorAll("[data-food-id]").forEach((card) => {
+    const food = Core.allFoods(state).find((item) => item.id === card.dataset.foodId);
+    card.querySelector("[data-action='add']").addEventListener("click", () => openEntryDialog(food));
+    card.querySelector("[data-action='favorite']").addEventListener("click", () => {
+      Core.toggleFavorite(state, food.id);
+      render();
+    });
+  });
+}
+
+function renderQuickRails() {
+  renderChipList(els.favoriteChips, state.favorites);
+  renderChipList(els.recentChips, state.recentFoodIds);
+}
+
+function renderChipList(root, ids) {
+  const foods = ids.map((id) => Core.allFoods(state).find((food) => food.id === id)).filter(Boolean);
+  root.innerHTML = foods.map((food) => `<button data-food-id="${food.id}">${escapeHtml(food.name)}</button>`).join("") || `<span class="empty">まだありません</span>`;
+  root.querySelectorAll("button").forEach((button) => {
+    const food = foods.find((item) => item.id === button.dataset.foodId);
+    button.addEventListener("click", () => openEntryDialog(food));
+  });
+}
+
+function renderMeals() {
+  const entries = state.logs[selectedDate] || [];
+  els.mealSections.innerHTML = Core.mealTypes.map((meal) => {
+    const mealEntries = entries.filter((entry) => entry.meal === meal.id);
+    const kcal = mealEntries.reduce((sum, entry) => sum + entry.nutrition.kcal, 0);
+    return `
+      <section class="meal-section">
+        <div class="meal-header"><h2>${meal.label}</h2><span>${money(kcal)} kcal</span></div>
+        ${mealEntries.map(mealEntry).join("") || `<p class="empty">未記録</p>`}
+      </section>`;
+  }).join("");
+  els.mealSections.querySelectorAll(".meal-entry").forEach((row) => {
+    row.querySelector("[data-action='delete']").addEventListener("click", () => {
+      Core.deleteLogEntry(state, selectedDate, row.dataset.entryId);
+      toast("削除しました");
+      render();
+    });
+    row.querySelector("input").addEventListener("change", (event) => {
+      Core.updateLogQuantity(state, selectedDate, row.dataset.entryId, event.target.value);
+      render();
+    });
+  });
+}
+
+function mealEntry(entry) {
+  return `
+    <article class="meal-entry" data-entry-id="${entry.id}">
+      <div>
+        <strong>${escapeHtml(entry.name)}</strong>
+        <span>${escapeHtml(entry.serving)} × <input aria-label="数量" type="number" min="0.1" step="0.1" value="${entry.quantity}" /> · ${money(entry.nutrition.kcal)}kcal</span>
+      </div>
+      <button class="tiny-button" data-action="delete" aria-label="削除">×</button>
+    </article>`;
+}
+
+function openEntryDialog(food) {
+  selectedFood = food;
+  els.entryTitle.textContent = food.name;
+  els.entryMeta.textContent = `${food.serving} · ${money(food.kcal)}kcal · P${macro(food.protein)} F${macro(food.fat)} C${macro(food.carbs)}`;
+  els.entryForm.meal.value = els.mealSelect.value;
+  els.entryForm.quantity.value = "1";
+  els.entryDialog.showModal();
+}
+
+function handleEntrySubmit(event) {
+  event.preventDefault();
+  const submitter = event.submitter && event.submitter.value;
+  if (submitter !== "add" || !selectedFood) {
+    els.entryDialog.close();
+    return;
+  }
+  Core.addLogEntry(state, selectedDate, els.entryForm.meal.value, selectedFood, els.entryForm.quantity.value, currentPhotoId ? "photo" : "manual", currentPhotoId);
+  els.entryDialog.close();
+  toast("追加しました");
+  render();
+}
+
+function handleCustomFood(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget));
+  try {
+    const food = Core.addCustomFood(state, data);
+    event.currentTarget.reset();
+    toast(`${food.name}を登録しました`);
+    render();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function renderCustomFoods() {
+  els.customFoodList.innerHTML = state.customFoods.map(foodCard).join("") || `<p class="empty">自分専用食品はまだありません</p>`;
+  bindFoodCards(els.customFoodList);
+}
+
+function handlePhoto(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    currentPhotoId = Core.uid("photo");
+    const draft = { id: currentPhotoId, date: selectedDate, image: reader.result, note: "", createdAt: new Date().toISOString() };
+    state.photoDrafts = [draft, ...state.photoDrafts].slice(0, 8);
+    els.photoPreview.src = reader.result;
+    els.photoPreview.hidden = false;
+    els.photoNote.value = "";
+    renderPhotoCandidates();
+    renderPhotoHistory();
+    saveState();
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleSavePhotoNote() {
+  if (!currentPhotoId) {
+    toast("先に写真を選んでください");
+    return;
+  }
+  const draft = state.photoDrafts.find((item) => item.id === currentPhotoId);
+  if (!draft) return;
+  draft.note = els.photoNote.value.trim();
+  draft.updatedAt = new Date().toISOString();
+  toast("写真メモを保存しました");
+  renderPhotoHistory();
+  saveState();
+}
+
+function renderPhotoHistory() {
+  const drafts = state.photoDrafts.filter((draft) => draft.date === selectedDate).slice(0, 4);
+  els.photoHistory.innerHTML = drafts.map((draft) => `
+    <button class="photo-thumb" data-photo-id="${draft.id}" type="button">
+      <img src="${draft.image}" alt="" />
+      <span>${escapeHtml(draft.note || "メモなし")}</span>
+    </button>
+  `).join("");
+  els.photoHistory.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const draft = state.photoDrafts.find((item) => item.id === button.dataset.photoId);
+      if (!draft) return;
+      currentPhotoId = draft.id;
+      els.photoPreview.src = draft.image;
+      els.photoPreview.hidden = false;
+      els.photoNote.value = draft.note || "";
+      renderPhotoCandidates();
+    });
+  });
+}
+
+async function renderPhotoCandidates() {
+  const recognizer = window.CaloriePhotoRecognition;
+  const result = recognizer
+    ? await recognizer.recognizePhoto({ state, dateKey: selectedDate, core: Core })
+    : { candidates: Core.suggestions(state, selectedDate) };
+  const pool = result.candidates || [];
+  els.photoCandidates.innerHTML = pool.map(foodCard).join("");
+  bindFoodCards(els.photoCandidates);
+}
+
+function handleWeight(event) {
+  event.preventDefault();
+  state.weights[selectedDate] = Number(new FormData(event.currentTarget).get("weight"));
+  toast("体重を保存しました");
+  render();
+}
+
+function handleGoals(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget));
+  state.settings.calorieGoal = Number(data.calorieGoal) || state.settings.calorieGoal;
+  state.settings.macroGoals = {
+    protein: Number(data.protein) || state.settings.macroGoals.protein,
+    fat: Number(data.fat) || state.settings.macroGoals.fat,
+    carbs: Number(data.carbs) || state.settings.macroGoals.carbs,
+  };
+  toast("目標を保存しました");
+  render();
+}
+
+function handleProfile(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget));
+  state.settings.profile = {
+    sex: data.sex,
+    age: Number(data.age),
+    heightCm: Number(data.heightCm),
+    weightKg: Number(data.weightKg),
+    activity: Number(data.activity),
+    goal: data.goal,
+  };
+  const estimate = Core.estimateGoals(state.settings.profile);
+  state.settings.calorieGoal = estimate.calorieGoal;
+  state.settings.macroGoals = estimate.macroGoals;
+  toast("目安を反映しました");
+  render();
+}
+
+function renderAnalysis() {
+  renderAnalysisBox(els.analysis7, Core.analyze(state, 7, selectedDate));
+  renderAnalysisBox(els.analysis30, Core.analyze(state, 30, selectedDate));
+  const rows = Core.rangeTotals(state, 30, selectedDate);
+  const max = Math.max(state.settings.calorieGoal, ...rows.map((row) => row.kcal), 1);
+  els.calorieChart.innerHTML = rows.map((row) => `<div class="bar" title="${row.date} ${money(row.kcal)}kcal" style="height:${Math.max(4, (row.kcal / max) * 140)}px"></div>`).join("");
+}
+
+function renderAnalysisBox(root, analysis) {
+  root.innerHTML = `
+    <div class="metric-row"><span>平均kcal</span><b>${money(analysis.avgKcal)}</b></div>
+    <div class="metric-row"><span>平均P</span><b>${macro(analysis.avgProtein)}g</b></div>
+    <div class="metric-row"><span>記録日数</span><b>${analysis.loggedDays}日</b></div>
+    <div class="metric-row"><span>体重変化</span><b>${macro(analysis.weightChange)}kg</b></div>`;
+}
+
+function renderForms() {
+  els.goalForm.calorieGoal.value = state.settings.calorieGoal;
+  els.goalForm.protein.value = state.settings.macroGoals.protein;
+  els.goalForm.fat.value = state.settings.macroGoals.fat;
+  els.goalForm.carbs.value = state.settings.macroGoals.carbs;
+  Object.entries(state.settings.profile).forEach(([key, value]) => {
+    if (els.profileForm[key]) els.profileForm[key].value = value;
+  });
+  els.weightForm.weight.value = state.weights[selectedDate] || "";
+}
+
+function renderSuggestions() {
+  els.suggestions.innerHTML = Core.suggestions(state, selectedDate).map(foodCard).join("");
+  bindFoodCards(els.suggestions);
+}
+
+function downloadBackup() {
+  const blob = new Blob([Core.createBackup(state)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `calorie-log-backup-${selectedDate}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  toast("バックアップを作成しました");
+}
+
+function restoreBackup(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      state = Core.restoreBackup(reader.result);
+      selectedDate = Core.todayKey();
+      els.datePicker.value = selectedDate;
+      toast("復元しました");
+      render();
+    } catch (error) {
+      toast("復元できませんでした");
+    }
+  };
+  reader.readAsText(file);
+}
+
+function toast(message) {
+  els.toast.textContent = message;
+  els.toast.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { els.toast.hidden = true; }, 2200);
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  const base = new URL(".", location.href);
+  navigator.serviceWorker.register(new URL("sw.js", base)).catch((error) => console.warn(error));
+}
+
+window.addEventListener("online", renderSummary);
+window.addEventListener("offline", renderSummary);
+init();
