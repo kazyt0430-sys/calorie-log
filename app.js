@@ -4,6 +4,8 @@ let state = loadState();
 let selectedDate = Core.todayKey();
 let selectedFood = null;
 let currentPhotoId = null;
+let photoCandidates = [];
+let selectedPhotoFoodId = null;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -33,6 +35,12 @@ const els = {
   savePhotoNoteButton: $("#savePhotoNoteButton"),
   photoHistory: $("#photoHistory"),
   photoCandidates: $("#photoCandidates"),
+  photoResultForm: $("#photoResultForm"),
+  photoAnalysisNote: $("#photoAnalysisNote"),
+  photoCandidateChoices: $("#photoCandidateChoices"),
+  photoPortionSelect: $("#photoPortionSelect"),
+  photoMealSelect: $("#photoMealSelect"),
+  photoNutritionPreview: $("#photoNutritionPreview"),
   analysis7: $("#analysis7"),
   analysis30: $("#analysis30"),
   calorieChart: $("#calorieChart"),
@@ -90,6 +98,7 @@ function fillMealSelects() {
   const options = Core.mealTypes.map((meal) => `<option value="${meal.id}">${meal.label}</option>`).join("");
   els.mealSelect.innerHTML = options;
   els.entryForm.meal.innerHTML = options;
+  els.photoMealSelect.innerHTML = options;
 }
 
 function bindEvents() {
@@ -111,6 +120,8 @@ function bindEvents() {
   els.restoreInput.addEventListener("change", restoreBackup);
   els.photoInput.addEventListener("change", handlePhoto);
   els.savePhotoNoteButton.addEventListener("click", handleSavePhotoNote);
+  els.photoResultForm.addEventListener("submit", handlePhotoResultSubmit);
+  els.photoPortionSelect.addEventListener("change", renderPhotoNutritionPreview);
   els.entryForm.addEventListener("submit", handleEntrySubmit);
   els.saveTemplateButton.addEventListener("click", handleSaveTemplate);
   $("#installHelp").addEventListener("click", () => toast("Safariの共有からホーム画面に追加できます"));
@@ -323,7 +334,7 @@ function handlePhoto(event) {
     els.photoPreview.src = reader.result;
     els.photoPreview.hidden = false;
     els.photoNote.value = "";
-    renderPhotoCandidates();
+    renderPhotoCandidates(reader.result);
     renderPhotoHistory();
     saveState();
   };
@@ -360,19 +371,77 @@ function renderPhotoHistory() {
       els.photoPreview.src = draft.image;
       els.photoPreview.hidden = false;
       els.photoNote.value = draft.note || "";
-      renderPhotoCandidates();
+      renderPhotoCandidates(draft.image);
     });
   });
 }
 
-async function renderPhotoCandidates() {
+async function renderPhotoCandidates(imageSource) {
   const recognizer = window.CaloriePhotoRecognition;
-  const result = recognizer
-    ? await recognizer.recognizePhoto({ state, dateKey: selectedDate, core: Core })
-    : { candidates: Core.suggestions(state, selectedDate) };
-  const pool = result.candidates || [];
-  els.photoCandidates.innerHTML = pool.map(foodCard).join("");
-  bindFoodCards(els.photoCandidates);
+  els.photoCandidates.innerHTML = `<p class="empty">写真を端末内で解析しています…</p>`;
+  els.photoResultForm.hidden = true;
+  try {
+    const result = recognizer
+      ? await recognizer.recognizePhoto({ state, dateKey: selectedDate, core: Core, imageSource })
+      : { candidates: Core.suggestions(state, selectedDate).map((food) => ({ food, confidence: 0 })) };
+    photoCandidates = (result.candidates || []).map((candidate) => candidate.food ? candidate : { food: candidate, confidence: 0 });
+    selectedPhotoFoodId = photoCandidates[0]?.food.id || null;
+    els.photoCandidates.innerHTML = "";
+    els.photoAnalysisNote.textContent = result.note || "候補と量を確認してください。";
+    renderPhotoResultChoices();
+    els.photoResultForm.hidden = !selectedPhotoFoodId;
+  } catch (error) {
+    console.warn(error);
+    els.photoCandidates.innerHTML = `<p class="empty">解析できませんでした。別の写真を選んでください。</p>`;
+  }
+}
+
+function renderPhotoResultChoices() {
+  els.photoCandidateChoices.innerHTML = photoCandidates.map((candidate, index) => `
+    <label class="candidate-choice ${candidate.food.id === selectedPhotoFoodId ? "selected" : ""}">
+      <input type="radio" name="photoFood" value="${candidate.food.id}" ${candidate.food.id === selectedPhotoFoodId ? "checked" : ""} />
+      <span><b>${index + 1}. ${escapeHtml(candidate.food.name)}</b><small>推定 ${candidate.confidence}%</small></span>
+    </label>
+  `).join("");
+  els.photoCandidateChoices.querySelectorAll("input").forEach((input) => {
+    input.addEventListener("change", () => {
+      selectedPhotoFoodId = input.value;
+      renderPhotoResultChoices();
+      renderPhotoPortions();
+    });
+  });
+  renderPhotoPortions();
+}
+
+function selectedPhotoFood() {
+  return photoCandidates.find((candidate) => candidate.food.id === selectedPhotoFoodId)?.food || null;
+}
+
+function renderPhotoPortions() {
+  const food = selectedPhotoFood();
+  if (!food) return;
+  els.photoPortionSelect.innerHTML = Core.portionOptions(food).map((portion, index) =>
+    `<option value="${portion.quantity}" ${index === 1 ? "selected" : ""}>${escapeHtml(portion.label)}</option>`
+  ).join("");
+  els.photoMealSelect.value = els.mealSelect.value;
+  renderPhotoNutritionPreview();
+}
+
+function renderPhotoNutritionPreview() {
+  const food = selectedPhotoFood();
+  if (!food) return;
+  const nutrition = Core.photoSelectionNutrition(food, els.photoPortionSelect.value);
+  els.photoNutritionPreview.innerHTML = `<b>${nutrition.kcal} kcal</b><span>P ${nutrition.protein}g</span><span>F ${nutrition.fat}g</span><span>C ${nutrition.carbs}g</span>`;
+}
+
+function handlePhotoResultSubmit(event) {
+  event.preventDefault();
+  const food = selectedPhotoFood();
+  if (!food) return;
+  Core.addLogEntry(state, selectedDate, els.photoMealSelect.value, food, els.photoPortionSelect.value, "photo-analysis", currentPhotoId);
+  toast(`${food.name}を記録しました`);
+  setTab("log");
+  render();
 }
 
 function handleWeight(event) {
