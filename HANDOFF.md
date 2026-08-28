@@ -4,7 +4,7 @@
 
 2026-08-28時点の開発バージョンは `v1.1.0` です。Calorie Logは、追加ランニングコスト0円の静的PWAとして動作します。データと写真は端末の `localStorage` に保存し、外部DB、有料API、有料ホスティング、APIキーは使用していません。
 
-作業開始時のGitHub `main` は `7cd9dee3033a7c06aeb3047d8386a4f2fe3a19bc`（`Create AGENTS.md`）でした。以前のHANDOFFにあった「GitHub未反映」という記載は古く、v1.0.1相当の実装は `b1a3bf52d8d3961878c953e152297b3042100120` としてすでに `main` に存在していました。
+作業開始時のGitHub `main` は `7cd9dee3033a7c06aeb3047d8386a4f2fe3a19bc`（`Create AGENTS.md`）でした。v1.1のコードはPR #2でmainへマージされ、コードリリースのmerge commitは `910c68a3c0586ab65b2159a7275eb5caba042408` です。
 
 ## 今回完了した作業
 
@@ -19,6 +19,7 @@
 - 確定した内容を写真由来の食事記録として追加。
 - PWAキャッシュ名を `calorie-log-v1.1.0` に更新。
 - README、CHANGELOG、ROADMAPを更新。
+- GitHub Pagesへ公開し、公開URL `https://kazyt0430-sys.github.io/calorie-log/` の表示と主要画面を確認。
 
 ## テスト結果
 
@@ -42,7 +43,9 @@
 - `app.js`、`app-core.js`、`photo-recognition.js`、`sw.js` のNode構文チェック: OK。
 - localhost `http://127.0.0.1:8080/` でHTML、manifest、Service Worker配信: OK。
 - `git diff --check`: OK。
-- クラウドブラウザからlocalhostへのアクセスは環境側で拒否されたため、操作テストはGitHub Pages反映後に実施する。
+- GitHub Pagesのデプロイ: 成功。
+- 公開版で通常の食事追加、数量2倍時のkcal/PFC再計算、7日・30日分析、設定画面、`/calorie-log/` 配下のmanifest・CSS・JS参照を確認。
+- 公開版の写真画面とファイル入力は表示確認済み。クラウドブラウザのファイル共有が完了しなかったため、実画像の選択から候補表示までのE2Eは未確認。写真解析・候補順位・量候補・栄養計算・写真由来記録は自動テストで確認済み。
 
 ## 制約と未完成部分
 
@@ -54,7 +57,7 @@
 
 ## 次に実装すべき項目
 
-1. GitHub Pages公開版で、写真選択、候補変更、量変更、記録追加、既存機能、Service Workerをスモークテストする。
+1. iPhone実機で、写真選択、候補変更、量変更、記録追加、ホーム画面追加、オフライン再起動を確認する。
 2. 実際の食事写真を使って候補精度を記録し、食品プロファイルと候補確率の調整を行う。
 3. 複数食品を1枚の写真から選択してまとめて記録できるUIを追加する。
 4. 無料で静的配布できる軽量画像分類モデルのサイズ・iPhone性能・ライセンスを検証する。
@@ -62,7 +65,8 @@
 
 ## Git / GitHub Pages状態
 
-- 実装コミット: `27c5ad9`（`Add local photo meal analysis v1.1`）。
-- `git push origin main` は `could not read Username for 'https://github.com'` で失敗。
-- `AGENTS.md` の認証失敗時停止ルールに従い、force-pushや認証回避は行っていない。
-- GitHub `main` とGitHub Pagesには未反映。GitHub認証を復旧後、ローカル `main` のコミットを通常pushし、公開版をスモークテストする必要がある。
+- GitHub API経由の実装コミット: `0c77f860916d916cd21ce2a8fcbcf29d2ad78f5f`、文書コミット: `d5ec6855053af18ba2dbd0ecb8ebd491fd881e54`。
+- PR #1はDraft解除APIの連携エラーによりクローズ。同一base/headの非Draft PR #2を作成し、競合なしを再確認して通常mergeした。
+- PR #2のmain merge commit: `910c68a3c0586ab65b2159a7275eb5caba042408`。
+- force push、reset、履歴改変は行っていない。
+- GitHub Pagesは公開済みで、コードリリースのPages workflow run #4は成功。

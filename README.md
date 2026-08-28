@@ -2,6 +2,10 @@
 
 iPhone Safariで日常利用するための、追加ランニングコスト0円のカロリー・PFC管理Webアプリです。
 
+公開版: https://kazyt0430-sys.github.io/calorie-log/
+
+現在のリリースは `v1.1.0` です。
+
 ## 使い方
 
 GitHub Pagesなどの静的ホスティングにこのリポジトリ直下を公開します。端末内の `localStorage` に保存するため、外部DBや有料APIは不要です。
