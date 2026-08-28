@@ -140,6 +140,60 @@
     };
   }
 
+  function portionOptions(food) {
+    const presets = {
+      "food-rice": [
+        { id: "small", label: "小盛 100g", quantity: 100 / 150 },
+        { id: "regular", label: "普通盛 150g", quantity: 1 },
+        { id: "large", label: "大盛 200g", quantity: 200 / 150 },
+      ],
+      "food-onigiri": [
+        { id: "half", label: "1/2個", quantity: 0.5 },
+        { id: "one", label: "1個", quantity: 1 },
+        { id: "two", label: "2個", quantity: 2 },
+      ],
+      "food-egg": [
+        { id: "one", label: "1個", quantity: 1 },
+        { id: "two", label: "2個", quantity: 2 },
+        { id: "three", label: "3個", quantity: 3 },
+      ],
+      "food-banana": [
+        { id: "half", label: "1/2本", quantity: 0.5 },
+        { id: "one", label: "1本", quantity: 1 },
+        { id: "two", label: "2本", quantity: 2 },
+      ],
+      "food-miso": [
+        { id: "small", label: "小椀", quantity: 0.75 },
+        { id: "regular", label: "1杯", quantity: 1 },
+        { id: "large", label: "大椀", quantity: 1.4 },
+      ],
+    };
+    if (presets[food.id]) return structuredCloneSafe(presets[food.id]);
+    const serving = String(food.serving || "1食");
+    if (/個|本|枚|パック|缶/.test(serving)) {
+      return [
+        { id: "half", label: `半量（${serving}の1/2）`, quantity: 0.5 },
+        { id: "regular", label: serving, quantity: 1 },
+        { id: "double", label: `2倍（${serving}×2）`, quantity: 2 },
+      ];
+    }
+    return [
+      { id: "small", label: `少なめ（${serving}の約2/3）`, quantity: 2 / 3 },
+      { id: "regular", label: `普通（${serving}）`, quantity: 1 },
+      { id: "large", label: `多め（${serving}の1.5倍）`, quantity: 1.5 },
+    ];
+  }
+
+  function photoSelectionNutrition(food, quantity) {
+    const nutrition = scaleFood(food, quantity);
+    return {
+      kcal: Math.round(nutrition.kcal),
+      protein: roundMacro(nutrition.protein),
+      fat: roundMacro(nutrition.fat),
+      carbs: roundMacro(nutrition.carbs),
+    };
+  }
+
   function roundMacro(value) {
     return Math.round(normalizeNumber(value) * 10) / 10;
   }
@@ -361,6 +415,8 @@
     allFoods,
     normalizeNumber,
     scaleFood,
+    portionOptions,
+    photoSelectionNutrition,
     roundMacro,
     calculateDay,
     remaining,

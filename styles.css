@@ -391,6 +391,37 @@ h2 {
   gap: 8px;
 }
 
+.photo-result {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.photo-result[hidden] { display: none; }
+.analysis-note { margin: 0; color: var(--muted); font-size: 13px; }
+.candidate-choices { display: grid; gap: 8px; }
+.candidate-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.candidate-choice.selected { border-color: var(--green); background: var(--mint); }
+.candidate-choice span { display: flex; justify-content: space-between; gap: 8px; }
+.candidate-choice small { color: var(--muted); }
+.photo-result label { display: grid; gap: 6px; font-weight: 700; }
+.photo-result select { min-height: 46px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; }
+.nutrition-preview { display: grid; grid-template-columns: 1.3fr repeat(3, 1fr); gap: 6px; }
+.nutrition-preview > * { padding: 9px 5px; border-radius: 8px; background: #eef6ef; text-align: center; }
+
 .photo-thumb {
   display: grid;
   grid-template-columns: 58px 1fr;

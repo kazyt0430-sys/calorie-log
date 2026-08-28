@@ -96,10 +96,19 @@
             <img id="photoPreview" alt="" hidden />
             <textarea id="photoNote" rows="2" placeholder="写真メモ 例: 外食ランチ、量は少なめ"></textarea>
             <button id="savePhotoNoteButton" class="secondary-button" type="button">メモ保存</button>
-            <p>写真を見ながら、候補から選んで量を調整できます。</p>
+            <p>写真は端末内だけで解析します。候補と量を確認して記録してください。</p>
           </div>
           <div class="photo-history" id="photoHistory"></div>
-          <div id="photoCandidates"></div>
+          <div id="photoCandidates" aria-live="polite"></div>
+          <form id="photoResultForm" class="photo-result" hidden>
+            <h2>解析結果</h2>
+            <p id="photoAnalysisNote" class="analysis-note"></p>
+            <div id="photoCandidateChoices" class="candidate-choices"></div>
+            <label>量・個数<select id="photoPortionSelect"></select></label>
+            <label>食事<select id="photoMealSelect"></select></label>
+            <div id="photoNutritionPreview" class="nutrition-preview"></div>
+            <button type="submit" class="primary-button">この内容で記録する</button>
+          </form>
         </section>
 
         <section class="tab-panel" id="tab-analysis">
