@@ -62,5 +62,7 @@
 
 ## Git / GitHub Pages状態
 
-- この文書作成時点では変更をローカルでテスト済み。
-- コミット・GitHub `main` へのpush・GitHub Pages公開確認は、この後の手順で実施する。
+- 実装コミット: `27c5ad9`（`Add local photo meal analysis v1.1`）。
+- `git push origin main` は `could not read Username for 'https://github.com'` で失敗。
+- `AGENTS.md` の認証失敗時停止ルールに従い、force-pushや認証回避は行っていない。
+- GitHub `main` とGitHub Pagesには未反映。GitHub認証を復旧後、ローカル `main` のコミットを通常pushし、公開版をスモークテストする必要がある。
