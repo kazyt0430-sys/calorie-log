@@ -54,35 +54,68 @@
     }));
   }
 
+  function fallbackCandidates(state, core, dateKey) {
+    const foods = core.allFoods(state) || [];
+    const byId = new Map(foods.map((food) => [food.id, food]));
+    const ordered = [];
+    const add = (food) => {
+      if (food && !ordered.some((item) => item.id === food.id)) ordered.push(food);
+    };
+    (state.recentFoodIds || []).forEach((id) => add(byId.get(id)));
+    try {
+      (core.suggestions(state, dateKey || core.todayKey()) || []).forEach(add);
+    } catch (error) {
+      // Suggestions are optional; the standard food database remains available.
+    }
+    foods.forEach(add);
+    return ordered.slice(0, 6).map((food, index) => ({
+      food,
+      confidence: Math.max(5, 30 - index * 4),
+    }));
+  }
+
   function loadImage(imageSource) {
     return new Promise((resolve, reject) => {
       const image = new Image();
       image.onload = () => resolve(image);
-      image.onerror = reject;
+      image.onerror = () => reject(new Error("Selected image could not be decoded"));
       image.src = imageSource;
     });
   }
 
-  async function recognizePhoto({ state, core, imageSource }) {
+  async function recognizePhoto({ state, core, dateKey, imageSource }) {
+    const fallback = () => ({
+      provider: "local-fallback",
+      candidates: fallbackCandidates(state, core, dateKey),
+      note: "画像を解析できなかったため、最近使った食品と代表候補を表示しています。食品と量を確認してください。",
+    });
     if (!imageSource || typeof document === "undefined") {
-      return { provider: "local-fallback", candidates: core.suggestions(state, core.todayKey()).slice(0, 6).map((food, index) => ({ food, confidence: Math.max(5, 35 - index * 5) })) };
+      return fallback();
     }
-    const image = await loadImage(imageSource);
-    const canvas = document.createElement("canvas");
-    canvas.width = 48;
-    canvas.height = 48;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const features = analyzePixels(context.getImageData(0, 0, canvas.width, canvas.height).data);
-    return {
-      provider: "local-color-heuristic-v1",
-      features,
-      candidates: rankFoods(core.allFoods(state), features, state.recentFoodIds),
-      note: "写真の色・明るさを端末内だけで解析した推定です。候補と量を確認してください。",
-    };
+    try {
+      const image = await loadImage(imageSource);
+      const canvas = document.createElement("canvas");
+      canvas.width = 48;
+      canvas.height = 48;
+      const context = canvas.getContext("2d");
+      if (!context) return fallback();
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const features = analyzePixels(context.getImageData(0, 0, canvas.width, canvas.height).data);
+      const candidates = rankFoods(core.allFoods(state), features, state.recentFoodIds);
+      if (!candidates.length) return fallback();
+      return {
+        provider: "local-color-heuristic-v1",
+        features,
+        candidates,
+        note: "写真の色・明るさを端末内だけで解析した推定です。候補と量を確認してください。",
+      };
+    } catch (error) {
+      console.warn("Photo analysis fallback", error);
+      return fallback();
+    }
   }
 
-  const api = { FOOD_PROFILES, analyzePixels, rankFoods, recognizePhoto };
+  const api = { FOOD_PROFILES, analyzePixels, rankFoods, fallbackCandidates, recognizePhoto };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.CaloriePhotoRecognition = api;
 })(typeof window !== "undefined" ? window : globalThis);

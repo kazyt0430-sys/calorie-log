@@ -101,6 +101,20 @@ test("photo candidates are ranked with confidence", () => {
   assert.ok(["food-broccoli", "food-green-salad"].includes(candidates[0].food.id));
 });
 
+test("photo fallback always returns candidates", () => {
+  const state = Core.emptyState();
+  const candidates = Photo.fallbackCandidates(state, Core, "2026-08-29");
+  assert.ok(candidates.length >= 1);
+  assert.ok(candidates[0].food);
+});
+
+test("photo fallback prioritizes recent foods", () => {
+  const state = Core.emptyState();
+  state.recentFoodIds = ["food-banana"];
+  const candidates = Photo.fallbackCandidates(state, Core, "2026-08-29");
+  assert.equal(candidates[0].food.id, "food-banana");
+});
+
 test("photo source is attached to saved meal", () => {
   const state = Core.emptyState();
   const entry = Core.addLogEntry(state, "2026-08-28", "lunch", state.foods[0], 1, "photo-analysis", "photo-1");
@@ -120,6 +134,20 @@ test("service worker caches all application entrypoints", () => {
   ["./index.html", "./app-core.js", "./photo-recognition.js", "./app.js", "./manifest.webmanifest"].forEach((asset) => assert.ok(source.includes(asset)));
 });
 
+test("service worker refreshes application code before cache fallback", () => {
+  const source = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+  assert.ok(source.includes('event.request.mode === "navigate"'));
+  assert.ok(source.includes("isAppCode"));
+  assert.ok(source.indexOf("fetch(event.request)") < source.lastIndexOf("caches.match(event.request)"));
+});
+
+test("photo input handles read failures with fallback candidates", () => {
+  const source = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  assert.ok(source.includes('reader.onerror = () => renderPhotoCandidates("")'));
+  assert.ok(source.includes('reader.onabort = () => renderPhotoCandidates("")'));
+  assert.ok(source.includes("recognizer.fallbackCandidates"));
+});
+
 test("mobile viewport and photo controls remain present", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   assert.ok(html.includes("viewport-fit=cover"));
@@ -131,7 +159,7 @@ test("mobile viewport and photo controls remain present", () => {
 test("package version and cache version match", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.equal(pkg.version, "1.1.0");
+  assert.equal(pkg.version, "1.1.1");
   assert.ok(serviceWorker.includes(`calorie-log-v${pkg.version}`));
 });
 
