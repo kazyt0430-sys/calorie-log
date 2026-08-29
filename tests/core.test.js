@@ -145,8 +145,10 @@ test("service worker refreshes application code before cache fallback", () => {
 
 test("photo input handles read failures with fallback candidates", () => {
   const source = fs.readFileSync(path.join(root, "app.js"), "utf8");
-  assert.ok(source.includes('reader.onerror = () => photoMode === "nutrition"'));
+  assert.ok(source.includes("reader.onerror = async () =>"));
   assert.ok(source.includes("reader.onabort = reader.onerror"));
+  assert.ok(source.includes("URL.createObjectURL(file)"));
+  assert.ok(source.includes("startSelectedPhoto(currentPhotoObjectUrl, false)"));
   assert.ok(source.includes("recognizer.fallbackCandidates"));
 });
 

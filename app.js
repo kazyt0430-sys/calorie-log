@@ -9,6 +9,7 @@ let selectedPhotoFoodId = null;
 let photoMode = "cooking";
 let currentPhotoSource = "";
 let nutritionRunId = 0;
+let currentPhotoObjectUrl = "";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -348,27 +349,43 @@ function renderCustomFoods() {
 function handlePhoto(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
+  if (currentPhotoObjectUrl) URL.revokeObjectURL(currentPhotoObjectUrl);
+  currentPhotoObjectUrl = "";
   els.photoCandidates.innerHTML = `<p class="empty">写真を読み込んでいます…</p>`;
   els.photoResultForm.hidden = true;
   const reader = new FileReader();
   reader.onload = async () => {
     const imageSource = typeof reader.result === "string" ? reader.result : "";
-    currentPhotoSource = imageSource;
-    currentPhotoId = Core.uid("photo");
-    const draft = { id: currentPhotoId, date: selectedDate, image: imageSource, note: "", createdAt: new Date().toISOString() };
-    state.photoDrafts = [draft, ...state.photoDrafts].slice(0, 8);
-    if (imageSource) {
-      els.photoPreview.src = imageSource;
-      els.photoPreview.hidden = false;
-    }
-    els.photoNote.value = "";
-    await processCurrentPhoto();
-    renderPhotoHistory();
-    if (!saveState()) toast("候補は表示できますが、写真の保存容量が不足しています");
+    await startSelectedPhoto(imageSource, true);
   };
-  reader.onerror = () => photoMode === "nutrition" ? renderNutritionResult(null, "画像を読み込めませんでした。手動で入力するか再解析してください。", "", true) : renderPhotoCandidates("");
+  reader.onerror = async () => {
+    try {
+      currentPhotoObjectUrl = URL.createObjectURL(file);
+      await startSelectedPhoto(currentPhotoObjectUrl, false);
+      toast("互換モードで写真を解析しました（写真履歴には保存されません）");
+    } catch (error) {
+      if (photoMode === "nutrition") renderNutritionResult(null, `画像を読み込めませんでした: ${error.message || error}`, "", true);
+      else renderPhotoCandidates("");
+    }
+  };
   reader.onabort = reader.onerror;
   reader.readAsDataURL(file);
+}
+
+async function startSelectedPhoto(imageSource, persistImage) {
+  if (!imageSource) throw new Error("画像データが空です");
+  currentPhotoSource = imageSource;
+  currentPhotoId = Core.uid("photo");
+  if (persistImage) {
+    const draft = { id: currentPhotoId, date: selectedDate, image: imageSource, note: "", createdAt: new Date().toISOString() };
+    state.photoDrafts = [draft, ...state.photoDrafts].slice(0, 8);
+  }
+  els.photoPreview.src = imageSource;
+  els.photoPreview.hidden = false;
+  els.photoNote.value = "";
+  await processCurrentPhoto();
+  renderPhotoHistory();
+  if (persistImage && !saveState()) toast("候補は表示できますが、写真の保存容量が不足しています");
 }
 
 function handleSavePhotoNote() {
