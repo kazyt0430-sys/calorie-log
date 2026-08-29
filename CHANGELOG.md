@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-29 v1.1.1
+
+- iPhone Safariで写真選択後に画像デコードまたはCanvas解析が失敗した場合でも、最近使った食品または代表食品を必ず1件以上表示するフォールバックを追加。
+- FileReaderのerror/abort、画像デコード失敗、Canvas context取得失敗、候補空配列、予期しない例外を個別に処理。
+- `createImageBitmap`には依存せず、互換性の高いFileReader、HTMLImageElement、Canvas 2Dを使用。
+- 写真によるlocalStorage容量超過がアプリ全体を停止しないよう保存処理を保護。
+- Service Workerをネットワーク優先のアプリコード更新方式へ変更し、キャッシュを `calorie-log-v1.1.1` に更新。
+
 ## 2026-08-28 v1.1.0
 
 - GitHub Pages公開版へリリースし、サブパス配信、通常の食事追加・数量変更、kcal/PFC再計算、分析・設定画面をスモークテスト。

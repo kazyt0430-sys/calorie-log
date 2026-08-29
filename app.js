@@ -68,7 +68,13 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(Core.STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(Core.STORAGE_KEY, JSON.stringify(state));
+    return true;
+  } catch (error) {
+    console.warn("State could not be saved", error);
+    return false;
+  }
 }
 
 function money(n) {
@@ -326,18 +332,25 @@ function renderCustomFoods() {
 function handlePhoto(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
+  els.photoCandidates.innerHTML = `<p class="empty">写真を読み込んでいます…</p>`;
+  els.photoResultForm.hidden = true;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
+    const imageSource = typeof reader.result === "string" ? reader.result : "";
     currentPhotoId = Core.uid("photo");
-    const draft = { id: currentPhotoId, date: selectedDate, image: reader.result, note: "", createdAt: new Date().toISOString() };
+    const draft = { id: currentPhotoId, date: selectedDate, image: imageSource, note: "", createdAt: new Date().toISOString() };
     state.photoDrafts = [draft, ...state.photoDrafts].slice(0, 8);
-    els.photoPreview.src = reader.result;
-    els.photoPreview.hidden = false;
+    if (imageSource) {
+      els.photoPreview.src = imageSource;
+      els.photoPreview.hidden = false;
+    }
     els.photoNote.value = "";
-    renderPhotoCandidates(reader.result);
+    await renderPhotoCandidates(imageSource);
     renderPhotoHistory();
-    saveState();
+    if (!saveState()) toast("候補は表示できますが、写真の保存容量が不足しています");
   };
+  reader.onerror = () => renderPhotoCandidates("");
+  reader.onabort = () => renderPhotoCandidates("");
   reader.readAsDataURL(file);
 }
 
@@ -381,10 +394,18 @@ async function renderPhotoCandidates(imageSource) {
   els.photoCandidates.innerHTML = `<p class="empty">写真を端末内で解析しています…</p>`;
   els.photoResultForm.hidden = true;
   try {
-    const result = recognizer
+    let result = recognizer
       ? await recognizer.recognizePhoto({ state, dateKey: selectedDate, core: Core, imageSource })
-      : { candidates: Core.suggestions(state, selectedDate).map((food) => ({ food, confidence: 0 })) };
-    photoCandidates = (result.candidates || []).map((candidate) => candidate.food ? candidate : { food: candidate, confidence: 0 });
+      : { candidates: [] };
+    let candidates = result.candidates || [];
+    if (!candidates.length && recognizer && recognizer.fallbackCandidates) {
+      candidates = recognizer.fallbackCandidates(state, Core, selectedDate);
+      result = { ...result, note: "画像を解析できなかったため、代表候補を表示しています。" };
+    }
+    if (!candidates.length) {
+      candidates = Core.allFoods(state).slice(0, 6).map((food, index) => ({ food, confidence: Math.max(5, 30 - index * 4) }));
+    }
+    photoCandidates = candidates.map((candidate) => candidate.food ? candidate : { food: candidate, confidence: 0 }).filter((candidate) => candidate.food);
     selectedPhotoFoodId = photoCandidates[0]?.food.id || null;
     els.photoCandidates.innerHTML = "";
     els.photoAnalysisNote.textContent = result.note || "候補と量を確認してください。";
@@ -392,7 +413,12 @@ async function renderPhotoCandidates(imageSource) {
     els.photoResultForm.hidden = !selectedPhotoFoodId;
   } catch (error) {
     console.warn(error);
-    els.photoCandidates.innerHTML = `<p class="empty">解析できませんでした。別の写真を選んでください。</p>`;
+    photoCandidates = Core.allFoods(state).slice(0, 6).map((food, index) => ({ food, confidence: Math.max(5, 30 - index * 4) }));
+    selectedPhotoFoodId = photoCandidates[0]?.food.id || null;
+    els.photoCandidates.innerHTML = "";
+    els.photoAnalysisNote.textContent = "画像解析中に問題が発生したため、代表候補を表示しています。";
+    renderPhotoResultChoices();
+    els.photoResultForm.hidden = !selectedPhotoFoodId;
   }
 }
 

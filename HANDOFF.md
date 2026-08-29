@@ -2,14 +2,19 @@
 
 ## 現在の状態
 
-2026-08-28時点の開発バージョンは `v1.1.0` です。Calorie Logは、追加ランニングコスト0円の静的PWAとして動作します。データと写真は端末の `localStorage` に保存し、外部DB、有料API、有料ホスティング、APIキーは使用していません。
+2026-08-29時点の開発バージョンは `v1.1.1` です。Calorie Logは、追加ランニングコスト0円の静的PWAとして動作します。データと写真は端末の `localStorage` に保存し、外部DB、有料API、有料ホスティング、APIキーは使用していません。
 
 作業開始時のGitHub `main` は `7cd9dee3033a7c06aeb3047d8386a4f2fe3a19bc`（`Create AGENTS.md`）でした。v1.1のコードはPR #2でmainへマージされ、コードリリースのmerge commitは `910c68a3c0586ab65b2159a7275eb5caba042408` です。
 
 ## 今回完了した作業
 
+- iPhone Safari実機で写真選択後に候補が表示されない不具合へ対応。
+- FileReader失敗、画像デコード失敗、Canvas失敗、空候補、例外の全経路で最近使った食品または代表食品を表示。
+- Service Workerのアプリコードをネットワーク優先に変更し、古いJavaScriptが残り続ける可能性を低減。
+- localStorage容量超過が候補表示や画面更新を停止しないよう保存処理を保護。
+
 - 欠落していた `tests/core.test.js` を現行実装に合わせて再作成。
-- `package.json` を `1.1.0` に更新。
+- `package.json` を `1.1.1` に更新。
 - 写真を48×48pxへ縮小し、色・明るさ・彩度・暖色・緑色・暗部の割合を端末内Canvasで解析する処理を追加。
 - 画像特徴と食品別の簡易プロファイルを比較し、推定候補を確率の高い順に最大6件表示。
 - 第1候補を初期選択し、ユーザーが他候補へ変更できるUIを追加。
@@ -17,15 +22,15 @@
 - その他の食品には基準量に応じた少なめ・普通・多め、または半量・1単位・2単位を表示。
 - 普通量を初期選択し、変更後のkcal・P・F・Cを食品DBから即時再計算。
 - 確定した内容を写真由来の食事記録として追加。
-- PWAキャッシュ名を `calorie-log-v1.1.0` に更新。
+- PWAキャッシュ名を `calorie-log-v1.1.1` に更新。
 - README、CHANGELOG、ROADMAPを更新。
 - GitHub Pagesへ公開し、公開URL `https://kazyt0430-sys.github.io/calorie-log/` の表示と主要画面を確認。
 
 ## テスト結果
 
-自動テスト `npm --offline test`:
+自動テスト `node tests/core.test.js`:
 
-- 17件すべて成功。
+- 21件すべて成功。
 - 初回起動state、既存データmigration。
 - 食事追加・削除、数量変更、kcal/PFC再計算。
 - 日付範囲、体重変化。
@@ -37,11 +42,13 @@
 - manifest、Service Worker、GitHub Pagesサブパス。
 - iPhone向けviewportと写真UI。
 - package/PWAキャッシュのバージョン整合。
+- 写真解析失敗時の候補保証、最近使った食品の優先、FileReader error/abort処理、Service Workerのネットワーク優先更新。
 
 追加確認:
 
 - `app.js`、`app-core.js`、`photo-recognition.js`、`sw.js` のNode構文チェック: OK。
 - localhost `http://127.0.0.1:8080/` でHTML、manifest、Service Worker配信: OK。
+- 今回のローカルHTTP配信は `http://127.0.0.1:4173/` で応答確認。クラウドブラウザはlocalhostを `ERR_BLOCKED_BY_CLIENT` で遮断したため、ローカル版のブラウザ操作は環境上実施不可。
 - `git diff --check`: OK。
 - GitHub Pagesのデプロイ: 成功。
 - 公開版で通常の食事追加、数量2倍時のkcal/PFC再計算、7日・30日分析、設定画面、`/calorie-log/` 配下のmanifest・CSS・JS参照を確認。
