@@ -8,6 +8,7 @@ let photoCandidates = [];
 let selectedPhotoFoodId = null;
 let photoMode = "cooking";
 let currentPhotoSource = "";
+let nutritionRunId = 0;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -49,6 +50,7 @@ const els = {
   nutritionAnalysisNote: $("#nutritionAnalysisNote"),
   nutritionPreview: $("#nutritionPreview"),
   nutritionRawText: $("#nutritionRawText"),
+  retryNutritionButton: $("#retryNutritionButton"),
   analysis7: $("#analysis7"),
   analysis30: $("#analysis30"),
   calorieChart: $("#calorieChart"),
@@ -141,6 +143,7 @@ function bindEvents() {
   els.nutritionModeButton.addEventListener("click", () => setPhotoMode("nutrition", true));
   els.nutritionResultForm.addEventListener("input", renderNutritionPreview);
   els.nutritionResultForm.addEventListener("submit", handleNutritionSubmit);
+  els.retryNutritionButton.addEventListener("click", () => recognizeNutrition(currentPhotoSource));
   els.entryForm.addEventListener("submit", handleEntrySubmit);
   els.saveTemplateButton.addEventListener("click", handleSaveTemplate);
   $("#installHelp").addEventListener("click", () => toast("Safariの共有からホーム画面に追加できます"));
@@ -363,7 +366,7 @@ function handlePhoto(event) {
     renderPhotoHistory();
     if (!saveState()) toast("候補は表示できますが、写真の保存容量が不足しています");
   };
-  reader.onerror = () => photoMode === "nutrition" ? renderNutritionResult(null, "画像を読み込めませんでした。手動で入力できます。") : renderPhotoCandidates("");
+  reader.onerror = () => photoMode === "nutrition" ? renderNutritionResult(null, "画像を読み込めませんでした。手動で入力するか再解析してください。", "", true) : renderPhotoCandidates("");
   reader.onabort = reader.onerror;
   reader.readAsDataURL(file);
 }
@@ -418,28 +421,38 @@ function processCurrentPhoto() {
 }
 
 async function recognizeNutrition(imageSource) {
+  const runId = ++nutritionRunId;
   const ocr = window.CalorieNutritionOcr;
-  els.photoCandidates.innerHTML = `<p class="empty">OCRを準備しています。初回は日本語モデルの読み込みに時間がかかります…</p>`;
+  els.photoCandidates.innerHTML = `<p class="empty">栄養表示を解析中… OCRを準備しています</p>`;
   els.photoResultForm.hidden = true;
   els.nutritionResultForm.hidden = true;
   if (!imageSource || !ocr) {
-    renderNutritionResult(null, "OCRを開始できませんでした。取得できた項目を手動で入力してください。");
+    renderNutritionResult(null, "OCRを開始できませんでした。取得できた項目を手動で入力してください。", "", true);
     return;
   }
   const result = await ocr.recognize(imageSource, (progress) => {
-    if (progress.status === "recognizing text") {
-      els.photoCandidates.innerHTML = `<p class="empty">文字を認識しています… ${Math.round((progress.progress || 0) * 100)}%</p>`;
-    }
+    if (runId !== nutritionRunId) return;
+    const percent = progress.progress ? ` ${Math.round(progress.progress * 100)}%` : "";
+    const labels = {
+      "preparing image": "画像を準備中",
+      "loading OCR worker": "日本語OCRを準備中",
+      "retrying with lightweight model": "軽量OCRで再試行中",
+      "loading language traineddata": "言語モデルを読み込み中",
+      "initializing api": "OCRを初期化中",
+      "recognizing text": "文字を認識中",
+    };
+    els.photoCandidates.innerHTML = `<p class="empty">栄養表示を解析中… ${labels[progress.status] || escapeHtml(progress.status || "処理中")}${percent}</p>`;
   });
+  if (runId !== nutritionRunId) return;
   const message = result.error
-    ? `OCRに失敗しました（${result.error}）。画面はそのまま手動修正できます。`
+    ? `OCRに失敗しました［${result.errorStage || "unknown"}］: ${result.error}。入力できる項目は手動修正し、必要なら再解析してください。`
     : result.product.detected
-      ? `読み取り結果（推定信頼度 ${result.product.confidence}%）を確認・修正してください。`
+      ? `読み取り結果（推定信頼度 ${result.product.confidence}%${result.fallbackUsed ? "・軽量OCR" : ""}）を確認・修正してください。`
       : "一部または数字だけの読み取りです。空欄を確認・修正してください。";
-  renderNutritionResult(result.product, message, result.text);
+  renderNutritionResult(result.product, message, result.text, Boolean(result.error));
 }
 
-function renderNutritionResult(product, message, rawText = "") {
+function renderNutritionResult(product, message, rawText = "", failed = false) {
   const form = els.nutritionResultForm;
   const data = product || { nutritionPerServing: {} };
   const nutrition = data.nutritionPerServing || {};
@@ -449,6 +462,7 @@ function renderNutritionResult(product, message, rawText = "") {
   form.meal.value = els.mealSelect.value;
   els.nutritionAnalysisNote.textContent = message;
   els.nutritionRawText.textContent = rawText || data.rawText || "文字は取得できませんでした";
+  els.retryNutritionButton.hidden = !failed;
   els.photoCandidates.innerHTML = "";
   form.hidden = false;
   renderNutritionPreview();

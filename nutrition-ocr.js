@@ -1,5 +1,18 @@
 (function (root) {
-  const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js";
+  const TESSERACT_URLS = [
+    "https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js",
+    "https://unpkg.com/tesseract.js@6/dist/tesseract.min.js",
+  ];
+  const CDN_OPTIONS = [
+    {
+      workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/worker.min.js",
+      corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@6",
+    },
+    {
+      workerPath: "https://unpkg.com/tesseract.js@6/dist/worker.min.js",
+      corePath: "https://unpkg.com/tesseract.js-core@6",
+    },
+  ];
 
   function normalizeText(value) {
     return String(value || "")
@@ -8,6 +21,7 @@
       .replace(/[：]/g, ":")
       .replace(/\r/g, "")
       .replace(/[ \t]+/g, " ")
+      .replace(/([ぁ-んァ-ヶ一-龠々])[ \t\u3000]+(?=[ぁ-んァ-ヶ一-龠々])/g, "$1")
       .trim();
   }
 
@@ -43,20 +57,30 @@
     const saltValue = salt ? asGrams(salt) : sodium ? asGrams(sodium) * 2.54 : null;
     const labelWords = /栄養成分|エネルギー|熱量|たんぱく質|蛋白質|脂質|炭水化物|食塩|protein|fat|carbohydrate|energy/i;
     const productName = lines.find((line) => !labelWords.test(line) && !/^内容量/i.test(line) && /[^0-9 .,:()]/.test(line)) || "";
-    const found = [energy, protein, fat, carbs, salt || sodium].filter(Boolean).length;
+    const numeric = numericFallback(text);
+    const values = {
+      kcal: kcal == null ? (numeric.kcal ?? null) : kcal,
+      protein: asGrams(protein) == null ? (numeric.protein ?? null) : asGrams(protein),
+      fat: asGrams(fat) == null ? (numeric.fat ?? null) : asGrams(fat),
+      carbs: asGrams(carbs) == null ? (numeric.carbs ?? null) : asGrams(carbs),
+      salt: saltValue == null ? (numeric.salt ?? null) : saltValue,
+      sugar: asGrams(sugar) == null ? (numeric.sugar ?? null) : asGrams(sugar),
+      fiber: asGrams(fiber) == null ? (numeric.fiber ?? null) : asGrams(fiber),
+    };
+    const found = [values.kcal, values.protein, values.fat, values.carbs, values.salt].filter((value) => value != null).length;
     return {
       barcode: "",
       productName,
       contentAmount: content ? content[1].replace(/\s/g, "") : "",
       servingUnit: serving ? serving[1].replace(/\s/g, "") : "1包装",
       nutritionPerServing: {
-        kcal: kcal == null ? null : Math.round(kcal * 10) / 10,
-        protein: asGrams(protein),
-        fat: asGrams(fat),
-        carbs: asGrams(carbs),
-        salt: saltValue == null ? null : Math.round(saltValue * 1000) / 1000,
-        sugar: asGrams(sugar),
-        fiber: asGrams(fiber),
+        kcal: values.kcal == null ? null : Math.round(values.kcal * 10) / 10,
+        protein: values.protein,
+        fat: values.fat,
+        carbs: values.carbs,
+        salt: values.salt == null ? null : Math.round(values.salt * 1000) / 1000,
+        sugar: values.sugar,
+        fiber: values.fiber,
       },
       confidence: Math.min(100, found * 18 + (serving ? 6 : 0) + (content ? 4 : 0)),
       rawText: text,
@@ -64,18 +88,49 @@
     };
   }
 
+  function numericFallback(text) {
+    const energy = text.match(/([0-9]+(?:[.,][0-9]+)?)\s*kcal/i);
+    const grams = [...text.matchAll(/([0-9]+(?:[.,][0-9]+)?)\s*g\b/gi)]
+      .map((match) => Number(match[1].replace(",", ".")));
+    if (!energy || grams.length < 4) return {};
+    return {
+      kcal: Number(energy[1].replace(",", ".")),
+      protein: grams[0] ?? null,
+      fat: grams[1] ?? null,
+      carbs: grams[2] ?? null,
+      sugar: grams.length >= 6 ? grams[3] : null,
+      fiber: grams.length >= 6 ? grams[4] : null,
+      salt: grams.length >= 6 ? grams[5] : grams[3],
+    };
+  }
+
   function loadTesseract() {
     if (root.Tesseract) return Promise.resolve(root.Tesseract);
     if (loadTesseract.promise) return loadTesseract.promise;
-    loadTesseract.promise = new Promise((resolve, reject) => {
+    loadTesseract.promise = (async () => {
+      const errors = [];
+      for (const url of TESSERACT_URLS) {
+        try {
+          await loadScript(url);
+          if (root.Tesseract) return root.Tesseract;
+        } catch (error) { errors.push(error.message); }
+      }
+      loadTesseract.promise = null;
+      throw new Error(`OCR本体の取得に失敗: ${errors.join(" / ")}`);
+    })();
+    return loadTesseract.promise;
+  }
+
+  function loadScript(url) {
+    return new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = TESSERACT_URL;
+      const timer = setTimeout(() => { script.remove(); reject(new Error(`${url} がタイムアウト`)); }, 20000);
+      script.src = url;
       script.crossOrigin = "anonymous";
-      script.onload = () => resolve(root.Tesseract);
-      script.onerror = () => reject(new Error("OCRエンジンを読み込めませんでした"));
+      script.onload = () => { clearTimeout(timer); resolve(); };
+      script.onerror = () => { clearTimeout(timer); reject(new Error(`${url} を読み込めませんでした`)); };
       document.head.appendChild(script);
     });
-    return loadTesseract.promise;
   }
 
   function preprocessImage(imageSource) {
@@ -106,23 +161,51 @@
   }
 
   async function recognize(imageSource, onProgress) {
-    let worker;
+    let image;
     try {
-      const [Tesseract, image] = await Promise.all([loadTesseract(), preprocessImage(imageSource)]);
-      worker = await Tesseract.createWorker(["jpn", "eng"], 1, {
-        logger: (message) => { if (onProgress) onProgress(message); },
-      });
-      await worker.setParameters({ tessedit_pageseg_mode: Tesseract.PSM ? Tesseract.PSM.SINGLE_BLOCK : "6" });
-      const result = await worker.recognize(image);
-      return { product: parseNutritionText(result.data.text), text: result.data.text, error: null };
+      if (onProgress) onProgress({ status: "preparing image", progress: 0 });
+      image = await preprocessImage(imageSource);
     } catch (error) {
-      return { product: parseNutritionText(""), text: "", error: error && error.message ? error.message : "OCRに失敗しました" };
-    } finally {
-      if (worker) await worker.terminate().catch(() => {});
+      return failure("image-decode", error);
     }
+    let Tesseract;
+    try { Tesseract = await loadTesseract(); } catch (error) { return failure("engine-load", error); }
+    const errors = [];
+    for (let attempt = 0; attempt < CDN_OPTIONS.length; attempt += 1) {
+      const languages = attempt === 0 ? ["jpn", "eng"] : "eng";
+      let worker;
+      try {
+        if (onProgress) onProgress({ status: attempt ? "retrying with lightweight model" : "loading OCR worker", progress: 0 });
+        worker = await withTimeout(Tesseract.createWorker(languages, 1, {
+          ...CDN_OPTIONS[attempt],
+          workerBlobURL: true,
+          logger: (message) => { if (onProgress) onProgress(message); },
+          errorHandler: (error) => { console.error("Nutrition OCR worker", error); },
+        }), 60000, "OCRワーカー初期化がタイムアウトしました");
+        await worker.setParameters({ tessedit_pageseg_mode: Tesseract.PSM ? Tesseract.PSM.SINGLE_BLOCK : "6", preserve_interword_spaces: "1" });
+        const result = await withTimeout(worker.recognize(image), 90000, "文字認識がタイムアウトしました");
+        const text = result && result.data ? result.data.text || "" : "";
+        return { product: parseNutritionText(text), text, error: null, fallbackUsed: attempt > 0 };
+      } catch (error) {
+        errors.push(`${attempt === 0 ? "日本語モデル" : "軽量モデル"}: ${error.message || error}`);
+      } finally {
+        if (worker) await worker.terminate().catch(() => {});
+      }
+    }
+    return { ...failure("worker-init", new Error(errors.join(" / "))), text: errors.join("\n") };
   }
 
-  const api = { TESSERACT_URL, normalizeText, parseNutritionText, preprocessImage, recognize };
+  function withTimeout(promise, milliseconds, message) {
+    return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(message)), milliseconds))]);
+  }
+
+  function failure(stage, error) {
+    const message = error && error.message ? error.message : String(error || "OCRに失敗しました");
+    console.error("Nutrition OCR failed", stage, error);
+    return { product: parseNutritionText(""), text: "", error: message, errorStage: stage };
+  }
+
+  const api = { TESSERACT_URLS, normalizeText, parseNutritionText, numericFallback, preprocessImage, recognize };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.CalorieNutritionOcr = api;
 })(typeof window !== "undefined" ? window : globalThis);

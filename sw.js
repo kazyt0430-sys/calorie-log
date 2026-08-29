@@ -1,4 +1,4 @@
-const CACHE_NAME = "calorie-log-v1.2.0";
+const CACHE_NAME = "calorie-log-v1.2.1";
 const ASSETS = [
   "./",
   "./index.html",
@@ -27,6 +27,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
+  // OCR workers, WASM and language models are cross-origin. Let Safari fetch
+  // them directly; returning the app shell for those requests corrupts OCR.
+  if (url.origin !== self.location.origin) return;
   const isAppCode = url.origin === self.location.origin && (
     event.request.mode === "navigate" || /\.(?:html|js|css|webmanifest)$/.test(url.pathname)
   );
