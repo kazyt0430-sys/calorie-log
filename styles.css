@@ -37,6 +37,8 @@ textarea { font: inherit; }
 .nutrition-result input, .nutrition-result select { min-height: 44px; width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; }
 .nutrition-fields { grid-template-columns: repeat(4, 1fr); }
 .nutrition-result pre { white-space: pre-wrap; max-height: 160px; overflow: auto; font-size: 12px; }
+.nutrition-crop-controls { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+#nutritionProcessedPreview { display: block; width: 100%; height: auto; max-height: 360px; object-fit: contain; background: #fff; }
 
 @media (max-width: 520px) {
   .nutrition-fields { grid-template-columns: repeat(2, 1fr); }
