@@ -11,6 +11,7 @@
 - 将来のバーコード検索用に `barcode`、`productName`、`servingUnit`、`nutritionPerServing` を持つ商品データ構造を追加。
 - iPhone Safariのメモリ負荷を抑える最大辺1600pxのCanvas前処理を追加し、Service Workerキャッシュを更新。
 - OCRパーサー、表記ゆれ、欠損、失敗、数量変更を含む自動テストを26件へ拡充。
+- PR #5をmainへマージし、Pages workflow run #7の成功と公開版の編集・数量再計算・登録を確認。
 
 ## 2026-08-29 v1.1.1
 

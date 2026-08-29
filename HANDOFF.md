@@ -85,6 +85,12 @@
 
 ## Git / GitHub Pages状態
 
+- v1.2.0実装コミット: `59718dbdd99f2d2a00df4ab174534cfe6f063e46`。
+- PR #5 `Add on-device nutrition label OCR v1.2.0` を競合なしでmainへ通常merge。
+- v1.2.0のmain merge commit: `804259fe87b61f3f356bd4314ddce1875b171af9`。
+- Pages workflow run #7は成功。公開版で料理/OCR切替、OCR失敗時の編集フォーム、数量0.5で286kcal→143kcalとP/F/C半量再計算、食事登録を確認。
+- クラウドブラウザではSVGテスト画像がFileReaderエラーになったため、実画像のOCR精度はiPhone Safari実機で追加確認が必要。失敗フォールバックと手動登録経路は公開版で確認済み。
+
 - GitHub API経由の実装コミット: `0c77f860916d916cd21ce2a8fcbcf29d2ad78f5f`、文書コミット: `d5ec6855053af18ba2dbd0ecb8ebd491fd881e54`。
 - PR #1はDraft解除APIの連携エラーによりクローズ。同一base/headの非Draft PR #2を作成し、競合なしを再確認して通常mergeした。
 - PR #2のmain merge commit: `910c68a3c0586ab65b2159a7275eb5caba042408`。
