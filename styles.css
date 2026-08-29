@@ -28,6 +28,20 @@ button, input, select {
   font: inherit;
 }
 
+textarea { font: inherit; }
+
+.photo-mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.mode-button { min-height: 44px; padding: 8px; border-radius: 8px; background: #edf3ed; color: var(--green-dark); font-weight: 700; }
+.mode-button.active { background: var(--green-dark); color: #fff; }
+.nutrition-result label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; }
+.nutrition-result input, .nutrition-result select { min-height: 44px; width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; }
+.nutrition-fields { grid-template-columns: repeat(4, 1fr); }
+.nutrition-result pre { white-space: pre-wrap; max-height: 160px; overflow: auto; font-size: 12px; }
+
+@media (max-width: 520px) {
+  .nutrition-fields { grid-template-columns: repeat(2, 1fr); }
+}
+
 button {
   border: 0;
   cursor: pointer;

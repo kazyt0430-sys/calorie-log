@@ -5,6 +5,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const Core = require(path.join(root, "app-core.js"));
 const Photo = require(path.join(root, "photo-recognition.js"));
+const Ocr = require(path.join(root, "nutrition-ocr.js"));
 
 let passed = 0;
 function test(name, fn) {
@@ -18,6 +19,7 @@ test("first launch state", () => {
   assert.equal(state.version, Core.CURRENT_VERSION);
   assert.ok(state.foods.length >= 30);
   assert.ok(Array.isArray(state.photoDrafts));
+  assert.ok(Array.isArray(state.products));
 });
 
 test("migration preserves user data and adds defaults", () => {
@@ -131,7 +133,7 @@ test("manifest keeps GitHub Pages subpath settings", () => {
 
 test("service worker caches all application entrypoints", () => {
   const source = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  ["./index.html", "./app-core.js", "./photo-recognition.js", "./app.js", "./manifest.webmanifest"].forEach((asset) => assert.ok(source.includes(asset)));
+  ["./index.html", "./app-core.js", "./photo-recognition.js", "./nutrition-ocr.js", "./app.js", "./manifest.webmanifest"].forEach((asset) => assert.ok(source.includes(asset)));
 });
 
 test("service worker refreshes application code before cache fallback", () => {
@@ -143,8 +145,8 @@ test("service worker refreshes application code before cache fallback", () => {
 
 test("photo input handles read failures with fallback candidates", () => {
   const source = fs.readFileSync(path.join(root, "app.js"), "utf8");
-  assert.ok(source.includes('reader.onerror = () => renderPhotoCandidates("")'));
-  assert.ok(source.includes('reader.onabort = () => renderPhotoCandidates("")'));
+  assert.ok(source.includes('reader.onerror = () => photoMode === "nutrition"'));
+  assert.ok(source.includes("reader.onabort = reader.onerror"));
   assert.ok(source.includes("recognizer.fallbackCandidates"));
 });
 
@@ -159,8 +161,48 @@ test("mobile viewport and photo controls remain present", () => {
 test("package version and cache version match", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.equal(pkg.version, "1.1.1");
+  assert.equal(pkg.version, "1.2.0");
   assert.ok(serviceWorker.includes(`calorie-log-v${pkg.version}`));
+});
+
+test("standard Japanese nutrition label is parsed", () => {
+  const product = Ocr.parseNutritionText("〇〇パン\n内容量 1個\n栄養成分表示 1個当たり\nエネルギー 286kcal\nたんぱく質 5.4g\n脂質 14.2g\n炭水化物 34.8g\n食塩相当量 0.8g");
+  assert.equal(product.productName, "〇〇パン");
+  assert.equal(product.servingUnit, "1個");
+  assert.deepEqual(product.nutritionPerServing, { kcal: 286, protein: 5.4, fat: 14.2, carbs: 34.8, salt: 0.8, sugar: null, fiber: null });
+});
+
+test("100g basis and English variants are parsed", () => {
+  const product = Ocr.parseNutritionText("Cookie\nNutrition facts per 100g\nEnergy 1800 kJ\nprotein 6.2 g\nfat 20 g\ncarbohydrate 65 g\nsodium 200 mg");
+  assert.equal(product.servingUnit.toLowerCase(), "100g");
+  assert.equal(product.nutritionPerServing.kcal, 430.2);
+  assert.equal(product.nutritionPerServing.salt, 0.508);
+});
+
+test("Japanese label variants and optional nutrients are parsed", () => {
+  const product = Ocr.parseNutritionText("和菓子\n1包装当たり\n熱量 120 kcal 蛋白質 2.0g 脂質 1.0g 炭水化物 27.0g 糖質 24g 食物繊維 3g");
+  assert.equal(product.nutritionPerServing.kcal, 120);
+  assert.equal(product.nutritionPerServing.protein, 2);
+  assert.equal(product.nutritionPerServing.sugar, 24);
+  assert.equal(product.nutritionPerServing.fiber, 3);
+});
+
+test("partial and failed OCR remain editable product data", () => {
+  const partial = Ocr.parseNutritionText("栄養成分表示\nエネルギー 99 kcal");
+  assert.equal(partial.nutritionPerServing.kcal, 99);
+  assert.equal(partial.nutritionPerServing.protein, null);
+  const failed = Ocr.parseNutritionText("");
+  assert.equal(failed.detected, false);
+  assert.equal(failed.servingUnit, "1包装");
+});
+
+test("nutrition product structure is barcode ready and quantity scales", () => {
+  const state = Core.emptyState();
+  const product = Core.saveProduct(state, { barcode: "4900000000000", productName: "菓子パン", servingUnit: "1個", nutritionPerServing: { kcal: 286, protein: 5.4, fat: 14.2, carbs: 34.8, salt: 0.8 } });
+  assert.equal(product.barcode, "4900000000000");
+  assert.equal(product.nutritionPerServing.salt, 0.8);
+  const entry = Core.addLogEntry(state, "2026-08-29", "snack", Core.productToFood(product), 0.5, "nutrition-ocr");
+  assert.deepEqual(entry.nutrition, { kcal: 143, protein: 2.7, fat: 7.1, carbs: 17.4 });
 });
 
 process.stdout.write(`# ${passed} tests passed\n`);

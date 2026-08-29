@@ -6,6 +6,8 @@ let selectedFood = null;
 let currentPhotoId = null;
 let photoCandidates = [];
 let selectedPhotoFoodId = null;
+let photoMode = "cooking";
+let currentPhotoSource = "";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -41,6 +43,12 @@ const els = {
   photoPortionSelect: $("#photoPortionSelect"),
   photoMealSelect: $("#photoMealSelect"),
   photoNutritionPreview: $("#photoNutritionPreview"),
+  cookingModeButton: $("#cookingModeButton"),
+  nutritionModeButton: $("#nutritionModeButton"),
+  nutritionResultForm: $("#nutritionResultForm"),
+  nutritionAnalysisNote: $("#nutritionAnalysisNote"),
+  nutritionPreview: $("#nutritionPreview"),
+  nutritionRawText: $("#nutritionRawText"),
   analysis7: $("#analysis7"),
   analysis30: $("#analysis30"),
   calorieChart: $("#calorieChart"),
@@ -105,6 +113,7 @@ function fillMealSelects() {
   els.mealSelect.innerHTML = options;
   els.entryForm.meal.innerHTML = options;
   els.photoMealSelect.innerHTML = options;
+  els.nutritionResultForm.meal.innerHTML = options;
 }
 
 function bindEvents() {
@@ -128,6 +137,10 @@ function bindEvents() {
   els.savePhotoNoteButton.addEventListener("click", handleSavePhotoNote);
   els.photoResultForm.addEventListener("submit", handlePhotoResultSubmit);
   els.photoPortionSelect.addEventListener("change", renderPhotoNutritionPreview);
+  els.cookingModeButton.addEventListener("click", () => setPhotoMode("cooking", true));
+  els.nutritionModeButton.addEventListener("click", () => setPhotoMode("nutrition", true));
+  els.nutritionResultForm.addEventListener("input", renderNutritionPreview);
+  els.nutritionResultForm.addEventListener("submit", handleNutritionSubmit);
   els.entryForm.addEventListener("submit", handleEntrySubmit);
   els.saveTemplateButton.addEventListener("click", handleSaveTemplate);
   $("#installHelp").addEventListener("click", () => toast("Safariの共有からホーム画面に追加できます"));
@@ -337,6 +350,7 @@ function handlePhoto(event) {
   const reader = new FileReader();
   reader.onload = async () => {
     const imageSource = typeof reader.result === "string" ? reader.result : "";
+    currentPhotoSource = imageSource;
     currentPhotoId = Core.uid("photo");
     const draft = { id: currentPhotoId, date: selectedDate, image: imageSource, note: "", createdAt: new Date().toISOString() };
     state.photoDrafts = [draft, ...state.photoDrafts].slice(0, 8);
@@ -345,12 +359,12 @@ function handlePhoto(event) {
       els.photoPreview.hidden = false;
     }
     els.photoNote.value = "";
-    await renderPhotoCandidates(imageSource);
+    await processCurrentPhoto();
     renderPhotoHistory();
     if (!saveState()) toast("候補は表示できますが、写真の保存容量が不足しています");
   };
-  reader.onerror = () => renderPhotoCandidates("");
-  reader.onabort = () => renderPhotoCandidates("");
+  reader.onerror = () => photoMode === "nutrition" ? renderNutritionResult(null, "画像を読み込めませんでした。手動で入力できます。") : renderPhotoCandidates("");
+  reader.onabort = reader.onerror;
   reader.readAsDataURL(file);
 }
 
@@ -381,12 +395,90 @@ function renderPhotoHistory() {
       const draft = state.photoDrafts.find((item) => item.id === button.dataset.photoId);
       if (!draft) return;
       currentPhotoId = draft.id;
+      currentPhotoSource = draft.image;
       els.photoPreview.src = draft.image;
       els.photoPreview.hidden = false;
       els.photoNote.value = draft.note || "";
-      renderPhotoCandidates(draft.image);
+      processCurrentPhoto();
     });
   });
+}
+
+function setPhotoMode(mode, reprocess = false) {
+  photoMode = mode;
+  els.cookingModeButton.classList.toggle("active", mode === "cooking");
+  els.nutritionModeButton.classList.toggle("active", mode === "nutrition");
+  els.photoResultForm.hidden = true;
+  els.nutritionResultForm.hidden = true;
+  if (reprocess && currentPhotoSource) processCurrentPhoto();
+}
+
+function processCurrentPhoto() {
+  return photoMode === "nutrition" ? recognizeNutrition(currentPhotoSource) : renderPhotoCandidates(currentPhotoSource);
+}
+
+async function recognizeNutrition(imageSource) {
+  const ocr = window.CalorieNutritionOcr;
+  els.photoCandidates.innerHTML = `<p class="empty">OCRを準備しています。初回は日本語モデルの読み込みに時間がかかります…</p>`;
+  els.photoResultForm.hidden = true;
+  els.nutritionResultForm.hidden = true;
+  if (!imageSource || !ocr) {
+    renderNutritionResult(null, "OCRを開始できませんでした。取得できた項目を手動で入力してください。");
+    return;
+  }
+  const result = await ocr.recognize(imageSource, (progress) => {
+    if (progress.status === "recognizing text") {
+      els.photoCandidates.innerHTML = `<p class="empty">文字を認識しています… ${Math.round((progress.progress || 0) * 100)}%</p>`;
+    }
+  });
+  const message = result.error
+    ? `OCRに失敗しました（${result.error}）。画面はそのまま手動修正できます。`
+    : result.product.detected
+      ? `読み取り結果（推定信頼度 ${result.product.confidence}%）を確認・修正してください。`
+      : "一部または数字だけの読み取りです。空欄を確認・修正してください。";
+  renderNutritionResult(result.product, message, result.text);
+}
+
+function renderNutritionResult(product, message, rawText = "") {
+  const form = els.nutritionResultForm;
+  const data = product || { nutritionPerServing: {} };
+  const nutrition = data.nutritionPerServing || {};
+  ["productName", "contentAmount", "servingUnit"].forEach((name) => { form[name].value = data[name] || (name === "servingUnit" ? "1包装" : ""); });
+  ["kcal", "protein", "fat", "carbs", "salt", "sugar", "fiber"].forEach((name) => { form[name].value = nutrition[name] == null ? "" : nutrition[name]; });
+  form.quantity.value = "1";
+  form.meal.value = els.mealSelect.value;
+  els.nutritionAnalysisNote.textContent = message;
+  els.nutritionRawText.textContent = rawText || data.rawText || "文字は取得できませんでした";
+  els.photoCandidates.innerHTML = "";
+  form.hidden = false;
+  renderNutritionPreview();
+}
+
+function nutritionFormData() {
+  const values = Object.fromEntries(new FormData(els.nutritionResultForm));
+  return {
+    productName: values.productName,
+    contentAmount: values.contentAmount,
+    servingUnit: values.servingUnit,
+    nutritionPerServing: { kcal: values.kcal, protein: values.protein, fat: values.fat, carbs: values.carbs, salt: values.salt, sugar: values.sugar, fiber: values.fiber },
+  };
+}
+
+function renderNutritionPreview() {
+  const values = nutritionFormData();
+  const food = Core.productToFood(Core.createProduct(values));
+  const nutrition = Core.photoSelectionNutrition(food, els.nutritionResultForm.quantity.value);
+  els.nutritionPreview.innerHTML = `<b>${nutrition.kcal} kcal</b><span>P ${nutrition.protein}g</span><span>F ${nutrition.fat}g</span><span>C ${nutrition.carbs}g</span>`;
+}
+
+function handleNutritionSubmit(event) {
+  event.preventDefault();
+  const product = Core.saveProduct(state, nutritionFormData());
+  const food = Core.productToFood(product);
+  Core.addLogEntry(state, selectedDate, els.nutritionResultForm.meal.value, food, els.nutritionResultForm.quantity.value, "nutrition-ocr", currentPhotoId);
+  toast(`${food.name}を記録しました`);
+  setTab("log");
+  render();
 }
 
 async function renderPhotoCandidates(imageSource) {

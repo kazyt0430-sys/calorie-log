@@ -1,10 +1,11 @@
-const CACHE_NAME = "calorie-log-v1.1.1";
+const CACHE_NAME = "calorie-log-v1.2.0";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app-core.js",
   "./photo-recognition.js",
+  "./nutrition-ocr.js",
   "./app.js",
   "./manifest.webmanifest",
   "./public/icon-192.svg",

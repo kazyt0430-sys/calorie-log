@@ -75,6 +75,7 @@
       recentFoodIds: [],
       mealTemplates: structuredCloneSafe(defaultMealTemplates),
       photoDrafts: [],
+      products: [],
     };
   }
 
@@ -101,6 +102,7 @@
     state.recentFoodIds = Array.isArray(raw.recentFoodIds) ? raw.recentFoodIds : [];
     state.mealTemplates = mergeMealTemplates(raw.mealTemplates);
     state.photoDrafts = Array.isArray(raw.photoDrafts) ? raw.photoDrafts : [];
+    state.products = Array.isArray(raw.products) ? raw.products : [];
     return state;
   }
 
@@ -192,6 +194,47 @@
       fat: roundMacro(nutrition.fat),
       carbs: roundMacro(nutrition.carbs),
     };
+  }
+
+  function createProduct(data = {}) {
+    const nutrition = data.nutritionPerServing || {};
+    return {
+      id: data.id || uid("product"),
+      barcode: String(data.barcode || "").trim(),
+      productName: String(data.productName || "").trim() || "栄養表示から登録",
+      contentAmount: String(data.contentAmount || "").trim(),
+      servingUnit: String(data.servingUnit || "").trim() || "1包装",
+      nutritionPerServing: {
+        kcal: Math.max(0, normalizeNumber(nutrition.kcal)),
+        protein: Math.max(0, normalizeNumber(nutrition.protein)),
+        fat: Math.max(0, normalizeNumber(nutrition.fat)),
+        carbs: Math.max(0, normalizeNumber(nutrition.carbs)),
+        salt: Math.max(0, normalizeNumber(nutrition.salt)),
+        sugar: nutrition.sugar === "" || nutrition.sugar == null ? null : Math.max(0, normalizeNumber(nutrition.sugar)),
+        fiber: nutrition.fiber === "" || nutrition.fiber == null ? null : Math.max(0, normalizeNumber(nutrition.fiber)),
+      },
+      createdAt: data.createdAt || new Date().toISOString(),
+    };
+  }
+
+  function productToFood(product) {
+    const nutrition = product.nutritionPerServing || {};
+    return {
+      id: product.id,
+      name: product.productName,
+      serving: product.servingUnit,
+      kcal: normalizeNumber(nutrition.kcal),
+      protein: normalizeNumber(nutrition.protein),
+      fat: normalizeNumber(nutrition.fat),
+      carbs: normalizeNumber(nutrition.carbs),
+      productData: structuredCloneSafe(product),
+    };
+  }
+
+  function saveProduct(state, data) {
+    const product = createProduct(data);
+    state.products = [product, ...(state.products || [])].slice(0, 100);
+    return product;
   }
 
   function roundMacro(value) {
@@ -417,6 +460,9 @@
     scaleFood,
     portionOptions,
     photoSelectionNutrition,
+    createProduct,
+    productToFood,
+    saveProduct,
     roundMacro,
     calculateDay,
     remaining,
