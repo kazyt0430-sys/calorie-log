@@ -92,6 +92,11 @@
 
         <section class="tab-panel" id="tab-photo">
           <div class="photo-box">
+            <h2>写真から記録</h2>
+            <div class="photo-mode-row" role="group" aria-label="写真の種類">
+              <button id="cookingModeButton" class="mode-button active" type="button">料理を解析</button>
+              <button id="nutritionModeButton" class="mode-button" type="button">栄養表示を読み取る</button>
+            </div>
             <input id="photoInput" type="file" accept="image/*" capture="environment" />
             <img id="photoPreview" alt="" hidden />
             <textarea id="photoNote" rows="2" placeholder="写真メモ 例: 外食ランチ、量は少なめ"></textarea>
@@ -107,6 +112,33 @@
             <label>量・個数<select id="photoPortionSelect"></select></label>
             <label>食事<select id="photoMealSelect"></select></label>
             <div id="photoNutritionPreview" class="nutrition-preview"></div>
+            <button type="submit" class="primary-button">この内容で記録する</button>
+          </form>
+          <form id="nutritionResultForm" class="photo-result nutrition-result" hidden>
+            <h2>栄養表示の確認</h2>
+            <p id="nutritionAnalysisNote" class="analysis-note" aria-live="polite"></p>
+            <label>商品名<input name="productName" placeholder="商品名（不明でも登録できます）" /></label>
+            <div class="number-row">
+              <label>内容量<input name="contentAmount" placeholder="例: 120g" /></label>
+              <label>基準<input name="servingUnit" placeholder="例: 1個 / 100g" required /></label>
+            </div>
+            <div class="number-row nutrition-fields">
+              <label>kcal<input name="kcal" type="number" min="0" step="0.1" inputmode="decimal" /></label>
+              <label>P (g)<input name="protein" type="number" min="0" step="0.1" inputmode="decimal" /></label>
+              <label>F (g)<input name="fat" type="number" min="0" step="0.1" inputmode="decimal" /></label>
+              <label>C (g)<input name="carbs" type="number" min="0" step="0.1" inputmode="decimal" /></label>
+            </div>
+            <div class="number-row nutrition-fields">
+              <label>食塩 (g)<input name="salt" type="number" min="0" step="0.001" inputmode="decimal" /></label>
+              <label>糖質 (g)<input name="sugar" type="number" min="0" step="0.1" inputmode="decimal" /></label>
+              <label>食物繊維 (g)<input name="fiber" type="number" min="0" step="0.1" inputmode="decimal" /></label>
+            </div>
+            <div class="number-row">
+              <label>数量<input name="quantity" type="number" min="0.1" step="0.1" value="1" inputmode="decimal" /></label>
+              <label>食事<select name="meal"></select></label>
+            </div>
+            <div id="nutritionPreview" class="nutrition-preview"></div>
+            <details><summary>読み取った文字</summary><pre id="nutritionRawText"></pre></details>
             <button type="submit" class="primary-button">この内容で記録する</button>
           </form>
         </section>
@@ -191,6 +223,7 @@
     <div class="toast" id="toast" role="status" hidden></div>
     <script src="app-core.js"></script>
     <script src="photo-recognition.js"></script>
+    <script src="nutrition-ocr.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
