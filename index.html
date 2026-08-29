@@ -118,6 +118,18 @@
             <h2>栄養表示の確認</h2>
             <p id="nutritionAnalysisNote" class="analysis-note" aria-live="polite"></p>
             <button id="retryNutritionButton" class="secondary-button" type="button" hidden>もう一度解析する</button>
+            <div class="nutrition-crop-controls">
+              <label>読み取り範囲
+                <select id="nutritionCropPreset">
+                  <option value="auto">自動（推奨）</option>
+                  <option value="full">写真全体</option>
+                  <option value="center">中央部分</option>
+                  <option value="top">上半分</option>
+                  <option value="bottom">下半分</option>
+                </select>
+              </label>
+              <button id="recropNutritionButton" class="secondary-button" type="button">範囲を変えて再解析</button>
+            </div>
             <label>商品名<input name="productName" placeholder="商品名（不明でも登録できます）" /></label>
             <div class="number-row">
               <label>内容量<input name="contentAmount" placeholder="例: 120g" /></label>
@@ -140,6 +152,7 @@
             </div>
             <div id="nutritionPreview" class="nutrition-preview"></div>
             <details><summary>読み取った文字</summary><pre id="nutritionRawText"></pre></details>
+            <details><summary>前処理画像・診断情報</summary><canvas id="nutritionProcessedPreview"></canvas><pre id="nutritionDiagnostics"></pre></details>
             <button type="submit" class="primary-button">この内容で記録する</button>
           </form>
         </section>

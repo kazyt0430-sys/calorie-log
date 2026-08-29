@@ -51,6 +51,10 @@ const els = {
   nutritionAnalysisNote: $("#nutritionAnalysisNote"),
   nutritionPreview: $("#nutritionPreview"),
   nutritionRawText: $("#nutritionRawText"),
+  nutritionCropPreset: $("#nutritionCropPreset"),
+  recropNutritionButton: $("#recropNutritionButton"),
+  nutritionProcessedPreview: $("#nutritionProcessedPreview"),
+  nutritionDiagnostics: $("#nutritionDiagnostics"),
   retryNutritionButton: $("#retryNutritionButton"),
   analysis7: $("#analysis7"),
   analysis30: $("#analysis30"),
@@ -144,6 +148,7 @@ function bindEvents() {
   els.nutritionModeButton.addEventListener("click", () => setPhotoMode("nutrition", true));
   els.nutritionResultForm.addEventListener("input", renderNutritionPreview);
   els.nutritionResultForm.addEventListener("submit", handleNutritionSubmit);
+  els.recropNutritionButton.addEventListener("click", () => recognizeNutrition(currentPhotoSource, selectedNutritionCrop()));
   els.retryNutritionButton.addEventListener("click", () => recognizeNutrition(currentPhotoSource));
   els.entryForm.addEventListener("submit", handleEntrySubmit);
   els.saveTemplateButton.addEventListener("click", handleSaveTemplate);
@@ -437,7 +442,17 @@ function processCurrentPhoto() {
   return photoMode === "nutrition" ? recognizeNutrition(currentPhotoSource) : renderPhotoCandidates(currentPhotoSource);
 }
 
-async function recognizeNutrition(imageSource) {
+function selectedNutritionCrop() {
+  const presets = {
+    full: { x: 0, y: 0, width: 1, height: 1 },
+    center: { x: 0.1, y: 0.15, width: 0.8, height: 0.7 },
+    top: { x: 0, y: 0, width: 1, height: 0.58 },
+    bottom: { x: 0, y: 0.42, width: 1, height: 0.58 },
+  };
+  return presets[els.nutritionCropPreset.value];
+}
+
+async function recognizeNutrition(imageSource, crop) {
   const runId = ++nutritionRunId;
   const ocr = window.CalorieNutritionOcr;
   els.photoCandidates.innerHTML = `<p class="empty">栄養表示を解析中… OCRを準備しています</p>`;
@@ -457,8 +472,20 @@ async function recognizeNutrition(imageSource) {
       "loading language traineddata": "言語モデルを読み込み中",
       "initializing api": "OCRを初期化中",
       "recognizing text": "文字を認識中",
+      "recognizing enhanced label": "強調画像を認識中",
+      "recognizing grayscale fallback": "別の前処理で再確認中",
     };
     els.photoCandidates.innerHTML = `<p class="empty">栄養表示を解析中… ${labels[progress.status] || escapeHtml(progress.status || "処理中")}${percent}</p>`;
+  }, {
+    crop,
+    onPreview(canvas, diagnostics) {
+      const preview = els.nutritionProcessedPreview;
+      const scale = Math.min(1, 560 / canvas.width);
+      preview.width = Math.max(1, Math.round(canvas.width * scale));
+      preview.height = Math.max(1, Math.round(canvas.height * scale));
+      preview.getContext("2d").drawImage(canvas, 0, 0, preview.width, preview.height);
+      els.nutritionDiagnostics.textContent = JSON.stringify(diagnostics, null, 2);
+    },
   });
   if (runId !== nutritionRunId) return;
   const message = result.error

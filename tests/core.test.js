@@ -163,7 +163,7 @@ test("mobile viewport and photo controls remain present", () => {
 test("package version and cache version match", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.equal(pkg.version, "1.2.1");
+  assert.equal(pkg.version, "1.3.0");
   assert.ok(serviceWorker.includes(`calorie-log-v${pkg.version}`));
 });
 
@@ -237,6 +237,43 @@ test("OCR failure UI exposes reason, retry and raw text", () => {
   assert.ok(html.includes('id="nutritionRawText"'));
   assert.ok(app.includes("errorStage"));
   assert.ok(app.includes("栄養表示を解析中"));
+});
+
+test("nutrition OCR preserves text resolution within Safari memory budget", () => {
+  const small = Ocr.fitDimensions(1200, 900);
+  assert.equal(small.width, 2400);
+  assert.ok(small.width * small.height <= 5200000);
+  const large = Ocr.fitDimensions(4032, 3024);
+  assert.ok(large.width * large.height <= 5200000);
+});
+
+test("adaptive threshold separates local dark text under uneven lighting", () => {
+  const gray = Uint8ClampedArray.from([220, 220, 220, 220, 60, 220, 150, 150, 150]);
+  const binary = Ocr.adaptiveThreshold(gray, 3, 3, 1, 8);
+  assert.equal(binary[4], 0);
+  assert.equal(binary[0], 255);
+});
+
+test("rule removal strips table lines without clearing isolated text", () => {
+  const pixels = new Uint8ClampedArray(25).fill(255);
+  for (let x = 0; x < 5; x += 1) pixels[2 * 5 + x] = 0;
+  pixels[0] = 0;
+  const cleaned = Ocr.removeRules(pixels, 5, 5, 0.7);
+  assert.equal(cleaned[2 * 5 + 2], 255);
+  assert.equal(cleaned[0], 0);
+});
+
+test("multi-pass OCR products merge partial label values", () => {
+  const a = Ocr.parseNutritionText("栄養成分表示 1個当たり\n熱量 369 kcal\nたんぱく質 9.0g\n脂質 13.3g");
+  const b = Ocr.parseNutritionText("炭 水 化 物 54.4g\n糖 質 52.2g\n食 物 繊 維 2.2g\n食 塩 相 当 量 2.3g");
+  const merged = Ocr.mergeProducts([a, b]);
+  assert.deepEqual(merged.nutritionPerServing, { kcal: 369, protein: 9, fat: 13.3, carbs: 54.4, salt: 2.3, sugar: 52.2, fiber: 2.2 });
+});
+
+test("nutrition crop controls and processed preview remain available", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.ok(html.includes('id="nutritionCropPreset"'));
+  assert.ok(html.includes('id="nutritionProcessedPreview"'));
 });
 
 process.stdout.write(`# ${passed} tests passed\n`);
