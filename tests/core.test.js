@@ -161,7 +161,7 @@ test("mobile viewport and photo controls remain present", () => {
 test("package version and cache version match", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const serviceWorker = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.equal(pkg.version, "1.2.0");
+  assert.equal(pkg.version, "1.2.1");
   assert.ok(serviceWorker.includes(`calorie-log-v${pkg.version}`));
 });
 
@@ -203,6 +203,38 @@ test("nutrition product structure is barcode ready and quantity scales", () => {
   assert.equal(product.nutritionPerServing.salt, 0.8);
   const entry = Core.addLogEntry(state, "2026-08-29", "snack", Core.productToFood(product), 0.5, "nutrition-ocr");
   assert.deepEqual(entry.nutrition, { kcal: 143, protein: 2.7, fat: 7.1, carbs: 17.4 });
+});
+
+test("real iPhone label benchmark with spaced Japanese labels is parsed", () => {
+  const product = Ocr.parseNutritionText(`栄養成分表示（1個当たり）
+熱 量 369 kcal
+たんぱく質 9.0 g
+脂 質 13.3 g
+炭 水 化 物 54.4 g
+糖 質 52.2 g
+食 物 繊 維 2.2 g
+食 塩 相 当 量 2.3 g`);
+  assert.equal(product.servingUnit, "1個");
+  assert.deepEqual(product.nutritionPerServing, { kcal: 369, protein: 9, fat: 13.3, carbs: 54.4, salt: 2.3, sugar: 52.2, fiber: 2.2 });
+});
+
+test("numeric-only lightweight OCR fallback maps benchmark values", () => {
+  const product = Ocr.parseNutritionText("369 kcal\n9.0 g\n13.3 g\n54.4 g\n52.2 g\n2.2 g\n2.3 g");
+  assert.deepEqual(product.nutritionPerServing, { kcal: 369, protein: 9, fat: 13.3, carbs: 54.4, salt: 2.3, sugar: 52.2, fiber: 2.2 });
+});
+
+test("service worker does not intercept cross-origin OCR assets", () => {
+  const source = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+  assert.ok(source.includes("if (url.origin !== self.location.origin) return"));
+});
+
+test("OCR failure UI exposes reason, retry and raw text", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  assert.ok(html.includes('id="retryNutritionButton"'));
+  assert.ok(html.includes('id="nutritionRawText"'));
+  assert.ok(app.includes("errorStage"));
+  assert.ok(app.includes("栄養表示を解析中"));
 });
 
 process.stdout.write(`# ${passed} tests passed\n`);
